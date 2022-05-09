@@ -4,12 +4,11 @@ import numpy as np
 from tqdm import trange
 from tqdm import tqdm
 
-from data.pairs.generate_pairs import TubingenPairs
-
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 
 from scipy.stats import norm
+from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset
 
 
 def ml_estimate(x):
@@ -36,14 +35,21 @@ def train(x, y, num_inducing, run_number, direction):
         inducing = np.take(x, inducing_idx, axis=0)
 
     sq_exp = gpflow.kernels.SquaredExponential()
-    # mat32 = gpflow.kernels.Matern32()
-    # mat52 = gpflow.kernels.Matern52()
-    # kernel = gpflow.kernels.Sum([sq_exp, mat32, mat52])
     sq_exp.variance.assign(1.0)
-    # lambda = 5 in this
+     # lambda = 5 in this
     sq_exp.lengthscales.assign(1. / 10)
 
-    m = gpflow.models.SGPR((x, y), sq_exp, inducing)
+    mat32 = gpflow.kernels.Matern32()
+    mat32.variance.assign(1.0)
+    mat32.lengthscales.assign(1. / 10)
+
+    mat52 = gpflow.kernels.Matern52()
+    mat52.variance.assign(1.0)
+    mat52.lengthscales.assign(1. / 10)
+
+    kernel = gpflow.kernels.Sum([sq_exp, mat32, mat52])
+
+    m = gpflow.models.SGPR((x, y), kernel, inducing)
     # kappa = 10 in this
     m.likelihood.variance.assign(1. / (100 ** 2))
 
@@ -66,13 +72,15 @@ def main():
     wrong_idx = []
     num_inducing = 500
 
-    data_gen = TubingenPairs(path='/vol/bitbucket/ad6013/Research/gp-causal/data/pairs/files')
-
-    x, y, weight = [], [], []
-    for i in data_gen.pairs_generator():
-        x.append(i[0])
-        y.append(i[1])
-        weight.append(i[2])
+    x, y, weight = get_tubingen_pairs_dataset(
+        data_path='/vol/bitbucket/ad6013/Research/gp-causal/data/pairs/files'
+    )
+    x, y, weight = get_synthetic_dataset(
+        num_datasets=100,
+        sample_size=100,
+        func_string="mult_b",
+        noise='uniform'
+    )
 
     for i in tqdm(range(len(x)), desc="Epochs", leave=True, position=0):
         print(f'\n {i}')
@@ -108,6 +116,6 @@ if __name__ == "__main__":
     wrong_weight = [weight[i] for i in wrong]
     accuracy = np.sum(correct_weight) / (np.sum(correct_weight) + np.sum(wrong_weight))
     import pickle
-    save_name = "fullscore-sgpr-sqexp-initialisation2"
+    save_name = "fullscore-multb-uniform-sgpr-sumgpsqexpmatern3252-initialisation2"
     with open(f'/vol/bitbucket/ad6013/Research/gp-causal/results/{save_name}.p', 'wb') as f:
         pickle.dump(accuracy, f)
