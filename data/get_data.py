@@ -76,5 +76,7 @@ def get_synthetic_dataset(
             sample_size=sample_size,
             noise=noise
         )
+    else:
+        raise NotImplementedError(f"{func_string} has not been implemented!")
     weight = np.ones(num_datasets)
     return cause, effect, weight

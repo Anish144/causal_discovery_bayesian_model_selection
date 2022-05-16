@@ -90,7 +90,7 @@ def multiplicative_noise_c(
     cause = np.random.normal(
         loc=0., scale=1., size=(num_dataset, sample_size, 1)
     )
-    effect = (np.log(10 + cause) + cuase ** 6) * np.exp(eval(f"{noise}_noise")(num_dataset, sample_size))
+    effect = (np.log(10 + cause) + cause ** 6) * np.exp(eval(f"{noise}_noise")(num_dataset, sample_size))
     return cause, effect
 
 
@@ -100,9 +100,9 @@ def complex_noise_a(
     noise: str
 ):
     cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size)
+        loc=0., scale=1., size=(num_dataset, sample_size, 1)
     )
-    effect = (np.log(10 + cause) + cause ** 2) ** eval(f"{noise}_noise")(num_dataset, sample_size)
+    effect = np.power(np.log(10 + cause) + cause ** 2, eval(f"{noise}_noise")(num_dataset, sample_size))
     return cause, effect
 
 
@@ -112,9 +112,10 @@ def complex_noise_b(
     noise: str
 ):
     cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size)
+        loc=0., scale=1., size=(num_dataset, sample_size, 1)
     )
-    effect = np.log(cause + 10) + cause ** (2 * np.abs(eval(f"{noise}_noise")(num_dataset, sample_size)))
+    noise_term = np.abs(eval(f"{noise}_noise")(num_dataset, sample_size))
+    effect = np.log(cause + 10) + np.power(cause ** 2, noise_term)
     return cause, effect
 
 
@@ -126,5 +127,5 @@ def complex_noise_c(
     cause = np.random.normal(
         loc=0., scale=1., size=(num_dataset, sample_size, 1)
     )
-    effect = np.log(cause ** 7 + 5) + cause ** 5 - np.sin((cause ** 2) * np.abs(eval(f"{noise}_noise")(num_dataset, sample_size)))
+    effect = np.log(cause ** 6 + 5) + cause ** 5 - np.sin((cause ** 2) * np.abs(eval(f"{noise}_noise")(num_dataset, sample_size)))
     return cause, effect
