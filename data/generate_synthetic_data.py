@@ -66,7 +66,8 @@ def multiplicative_noise_a(
     cause = np.random.normal(
         loc=0., scale=1., size=(num_dataset, sample_size, 1)
     )
-    effect = (cause ** 3 + cause) * np.exp(eval(f"{noise}_noise")(num_dataset, sample_size))
+    noise = eval(f"{noise}_noise")(num_dataset, sample_size)
+    effect = (cause ** 3 + cause) * np.exp(noise)
     return cause, effect
 
 

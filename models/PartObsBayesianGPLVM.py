@@ -1,3 +1,4 @@
+from tabnanny import check
 from typing import Optional
 
 import numpy as np
@@ -94,12 +95,12 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         assert self.X_prior_var.shape[0] == self.num_data
         assert self.X_prior_var.shape[1] == self.num_latent_gps
 
-    def get_new_mean_vars(self) -> MeanAndVariance:
+    def get_new_mean_vars(self, in_data) -> MeanAndVariance:
         new_mean = tf.concat(
-            [self.in_data, self.X_data_mean], axis=1
+            [in_data, self.X_data_mean], axis=1
         )
         # Set observed variance to 0
-        var_param = tf.zeros(shape=self.in_data.shape, dtype=default_float())
+        var_param = tf.zeros(shape=in_data.shape, dtype=default_float())
         new_variance = tf.concat(
             [var_param, self.X_data_var], axis=1
         )
@@ -113,21 +114,25 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         Construct a tensorflow function to compute the bound on the marginal
         likelihood.
         """
+        # print(self.kernel.lengthscales)
         Y_data = self.data
 
-        new_mean, new_variance = self.get_new_mean_vars()
+        new_mean, new_variance = self.get_new_mean_vars(self.in_data)
         pX = DiagonalGaussian(new_mean, new_variance)
 
         num_inducing = self.inducing_variable.num_inducing
         psi0 = tf.reduce_sum(expectation(pX, self.kernel))
+        # try:
         psi1 = expectation(pX, (self.kernel, self.inducing_variable))
+        # except:
+        # tf.print(self.kernel.lengthscales, self.kernel.variance, self.likelihood.variance)
         psi2 = tf.reduce_sum(
             expectation(
                 pX, (self.kernel, self.inducing_variable), (self.kernel, self.inducing_variable)
             ),
             axis=0,
         )
-        cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=default_jitter())
+        cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=1e-4)
         L = tf.linalg.cholesky(cov_uu)
         sigma2 = self.likelihood.variance
         # Compute intermediate matrices
@@ -136,6 +141,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         LB = tf.linalg.cholesky(B)
+
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
         c = tf.linalg.triangular_solve(LB, tf.linalg.matmul(A, Y_data), lower=True) / sigma2
 
@@ -162,15 +168,15 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         bound += 0.5 * tf.reduce_sum(tf.square(c))
         bound += -0.5 * D * (tf.reduce_sum(psi0) / sigma2 - tf.reduce_sum(tf.linalg.diag_part(AAT)))
         bound -= KL
-        if np.isnan(LB.numpy()).sum() > 0:
-            print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
+        # if np.isnan(LB.numpy()).sum() > 0:
+        #     print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
             # import pdb; pdb.set_trace()
 
         # print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
         return bound
 
     def predict_f(
-        self, Xnew: InputData, full_cov: bool = False, full_output_cov: bool = False
+        self, in_data_new: InputData, Xnew: InputData, full_cov: bool = False, full_output_cov: bool = False
     ) -> MeanAndVariance:
         """
         Compute the mean and variance of the latent function at some new points.
@@ -184,7 +190,8 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         if full_output_cov:
             raise NotImplementedError
 
-        pX = DiagonalGaussian(self.X_data_mean, self.X_data_var)
+        new_mean, new_variance = self.get_new_mean_vars(in_data_new)
+        pX = DiagonalGaussian(new_mean, new_variance)
 
         Y_data = self.data
         num_inducing = self.inducing_variable.num_inducing
@@ -229,3 +236,14 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
 
     def predict_log_density(self, data: OutputData) -> tf.Tensor:
         raise NotImplementedError
+
+
+def check_condition_number(matrix):
+    eig_B = tf.linalg.eigvals(
+        matrix, name=None
+    )
+    eig_real = tf.math.real(eig_B)
+    max_eig = tf.math.abs(tf.reduce_max(eig_real))
+    min_eig = tf.math.abs(tf.reduce_min(eig_real))
+    condition_number = max_eig / min_eig
+    return condition_number
