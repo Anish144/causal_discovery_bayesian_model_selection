@@ -216,12 +216,8 @@ def calculate_causal_score(seed, x, y, num_inducing):
         print(
             f"Initial values: {likelihood_variance}, {kernel_lengthscale}"
         )
-    # Ignore the high dim
-    if x.shape[-1] > 1:
-        return None, None, None, None
-    else:
-        # Get data points
-        x_train, y_train, weight_train = x, y, weight
+
+    x_train, y_train = x, y
     # Make sure data is standardised
     x_train = StandardScaler().fit_transform(x_train).astype(np.float64)
     y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
@@ -301,6 +297,9 @@ def main(args: argparse.Namespace):
 
     scores = []
     for i in tqdm(range(len(x)), desc="Epochs", leave=True, position=0):
+        # Ignore the high dim
+        if x[i].shape[-1] > 1:
+            continue
         np.random.seed(i)
         tf.random.set_seed(i)
         print(f'\n Run: {i}')
