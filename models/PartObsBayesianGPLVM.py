@@ -19,6 +19,8 @@ from gpflow.models.model import GPModel, MeanAndVariance
 from gpflow.models.training_mixins import InputData, InternalDataTrainingLossMixin, OutputData
 from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
 
+import tensorflow_probability as tfp
+
 
 class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
     def __init__(
@@ -126,13 +128,14 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         psi1 = expectation(pX, (self.kernel, self.inducing_variable))
         # except:
         # tf.print(self.kernel.lengthscales, self.kernel.variance, self.likelihood.variance)
+        # tf.print(tf.reduce_min(new_variance[:, 1]))
         psi2 = tf.reduce_sum(
             expectation(
                 pX, (self.kernel, self.inducing_variable), (self.kernel, self.inducing_variable)
             ),
             axis=0,
         )
-        cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=1e-4)
+        cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=1e-2)
         L = tf.linalg.cholesky(cov_uu)
         sigma2 = self.likelihood.variance
         # Compute intermediate matrices
