@@ -284,7 +284,7 @@ def main(args: argparse.Namespace):
     # Choose the dataset
     if args.data == "cep":
         x, y, weight = get_tubingen_pairs_dataset(
-            data_path='/vol/bitbucket/ad6013/Research/gp-causal/data/pairs/files'
+            data_path='/rds/general/user/ad6013/home/Research/gp-causal/data/pairs/files'
         )
     else:
         func_type, noise = args.data.split("-")
@@ -367,6 +367,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     with tf.device('gpu'):
+        tf.print(tf.config.list_physical_devices('GPU'))
         corr, wrong, weight, scores = main(args)
     correct_weight = [weight[i] for i in corr]
     wrong_weight = [weight[i] for i in wrong]
@@ -376,5 +377,5 @@ if __name__ == "__main__":
     import pickle
     save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
     # save_name = "test"
-    with open(f'/vol/bitbucket/ad6013/Research/gp-causal/results/{save_name}.p', 'wb') as f:
+    with open(f' /rds/general/user/ad6013/home/Research/gp-causal/results/{save_name}.p', 'wb') as f:
         pickle.dump((accuracy, scores), f)
