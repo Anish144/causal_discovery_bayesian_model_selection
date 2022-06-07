@@ -337,7 +337,7 @@ def main(args: argparse.Namespace):
             )
         score_x_y = min(rr_loss_x) + min(rr_loss_y_x)
         score_y_x = min(rr_loss_y) + min(rr_loss_x_y)
-        print(f"Run {i}: {score_x_y} ; {score_y_x}")
+        tf.print(f"Run {i}: {score_x_y} ; {score_y_x}")
         if score_x_y < score_y_x:
             correct_idx.append(i)
         else:
