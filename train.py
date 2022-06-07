@@ -1,14 +1,11 @@
 from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset
 from gpflow.base import Parameter
 from gpflow.config import default_float
-from gpflow.utilities import ops
 from gpflow.utilities import positive
 from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
 from scipy.stats import norm
-from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-from tqdm import trange
 import argparse
 import gpflow
 import numpy as np
@@ -16,7 +13,9 @@ import os
 import tensorflow as tf
 import tensorflow_probability as tfp
 from time import process_time
-from multiprocessing import Pool
+import matplotlib.pyplot as plt
+from typing import Optional
+from pathlib import Path
 
 
 def ml_estimate(x):
@@ -40,6 +39,11 @@ def train(
     kernel_variance,
     kernel_lengthscale,
     likelihood_variance,
+    work_dir,
+    data_name,
+    causal: Optional[bool] = None,
+    run_number: Optional[int] = None,
+    random_restart_number: Optional[int] = None,
     no_observed=False,
 ):
     # if len(x) < num_inducing + 1:
@@ -192,16 +196,42 @@ def train(
         options=dict(maxiter=10000),
     )
     loss = - m.elbo()
+
+    if args.plot_fit and not no_observed:
+        # Plot the fit to see if everything is ok
+        obs_new = np.linspace(-5, 5, 4000)[:, None]
+        # Sample from the prior
+        Xnew = tfp.distributions.Normal(loc=0, scale=1).sample([obs_new.shape[0], latent_dim])
+        Xnew = tf.cast(Xnew, dtype=default_float())
+        Xnew = tf.concat(
+            [obs_new, Xnew], axis=1
+        )
+        pred_f_mean, pred_f_var = m.predict_f(
+            in_data_new=x,
+            Xnew=Xnew,
+        )
+        plt.scatter(x, y, c='r')
+        plt.plot(obs_new, pred_f_mean, c='b', alpha=0.25)
+        plt.fill_between(obs_new[:, 0], (pred_f_mean + 2 * np.sqrt(pred_f_var))[:, 0], (pred_f_mean - 2 * np.sqrt(pred_f_var))[:,0], alpha=0.5)
+        save_dir = Path(f"{work_dir}/run_plots/{data_name}")
+        save_dir.mkdir(
+            parents=True, exist_ok=True
+        )
+        causal_direction = "causal" if causal else "anticausal"
+        plt.savefig(
+            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}"
+        )
+        plt.close()
     return loss
 
 
-def calculate_causal_score(seed, x, y, num_inducing):
+def calculate_causal_score(args, seed, x, y, run_number, restart_number):
     np.random.seed(seed)
     tf.random.set_seed(seed)
     # Set seed for each run (useful for debugging)
     # Sample random hyperparams, one for each experiment
     # Kernel variance will always be 1
-    kernel_variance = 5.0
+    kernel_variance = 1.0
     # Likelihood variance
     kappa = np.random.uniform(
         low=1.0, high=100, size=[4]
@@ -226,10 +256,14 @@ def calculate_causal_score(seed, x, y, num_inducing):
         x=np.random.normal(loc=0, scale=1,size=x_train.shape),
         y=x_train,
         no_observed=True,
-        num_inducing=num_inducing,
+        num_inducing=args.num_inducing,
         kernel_variance=kernel_variance,
         kernel_lengthscale=kernel_lengthscale[0],
-        likelihood_variance=likelihood_variance[0]
+        likelihood_variance=likelihood_variance[0],
+        work_dir=args.work_dir,
+        data_name=args.data,
+        run_number=run_number,
+        random_restart_number=restart_number,
     )
     if args.debug:
         loss_x_ml = ml_estimate(x_train)
@@ -238,20 +272,29 @@ def calculate_causal_score(seed, x, y, num_inducing):
     loss_y_x = train(
         x=x_train,
         y=y_train,
-        num_inducing=num_inducing,
+        num_inducing=args.num_inducing,
         kernel_variance=kernel_variance,
         kernel_lengthscale=kernel_lengthscale[1],
-        likelihood_variance=likelihood_variance[1]
+        likelihood_variance=likelihood_variance[1],
+        work_dir=args.work_dir,
+        data_name=args.data,
+        run_number=run_number,
+        random_restart_number=restart_number,
+        causal=True,
     )
     # x <- y score
     loss_y = train(
         x=np.random.normal(loc=0, scale=1,size=x_train.shape),
         y=y_train,
         no_observed=True,
-        num_inducing=num_inducing,
+        num_inducing=args.num_inducing,
         kernel_variance=kernel_variance,
         kernel_lengthscale=kernel_lengthscale[2],
-        likelihood_variance=likelihood_variance[2]
+        likelihood_variance=likelihood_variance[2],
+        work_dir=args.work_dir,
+        data_name=args.data,
+        run_number=run_number,
+        random_restart_number=restart_number,
     )
     if args.debug:
         loss_y_ml = ml_estimate(y_train)
@@ -260,10 +303,15 @@ def calculate_causal_score(seed, x, y, num_inducing):
     loss_x_y = train(
         x=y_train,
         y=x_train,
-        num_inducing=num_inducing,
+        num_inducing=args.num_inducing,
         kernel_variance=kernel_variance,
         kernel_lengthscale=kernel_lengthscale[3],
-        likelihood_variance=likelihood_variance[3]
+        likelihood_variance=likelihood_variance[3],
+        work_dir=args.work_dir,
+        data_name=args.data,
+        run_number=run_number,
+        random_restart_number=restart_number,
+        causal=False,
     )
     return (loss_x, loss_y_x, loss_y, loss_x_y)
     # Save time
@@ -284,7 +332,7 @@ def main(args: argparse.Namespace):
     # Choose the dataset
     if args.data == "cep":
         x, y, weight = get_tubingen_pairs_dataset(
-            data_path='/rds/general/user/ad6013/home/Research/gp-causal/data/pairs/files'
+            data_path=f'{args.work_dir}/data/pairs/files'
         )
     else:
         func_type, noise = args.data.split("-")
@@ -318,10 +366,12 @@ def main(args: argparse.Namespace):
                 loss_y,
                 loss_x_y
             ) = calculate_causal_score(
+                args=args,
                 seed=seed,
                 x=x[i],
                 y=y[i],
-                num_inducing=num_inducing
+                run_number=i,
+                restart_number=j,
             )
             if loss_x is not None:
                 rr_loss_x.append(loss_x)
@@ -350,6 +400,9 @@ if __name__ == "__main__":
     # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '--work_dir', '-w', type=str, required=True,
+    )
+    parser.add_argument(
         '--data', '-d', type=str, required=True,
         help="One of [cep, mult_a-normal, ..., add_a-uniform, ..., complex_a-exp]."
     )
@@ -360,6 +413,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--debug', '-deb', action="store_true", default=False,
         help="Will run graph eagerly for debugging."
+    )
+    parser.add_argument(
+        '--plot_fit', '-pf', action="store_true", default=False,
+        help="Plot the fit of the conditional estimators."
     )
     parser.add_argument(
         '--random_restarts', '-rr', type=int, default=1,
@@ -377,5 +434,5 @@ if __name__ == "__main__":
     import pickle
     save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
     # save_name = "test"
-    with open(f' /rds/general/user/ad6013/home/Research/gp-causal/results/{save_name}.p', 'wb') as f:
+    with open(f'{args.work_dir}/results/{save_name}.p', 'wb') as f:
         pickle.dump((accuracy, scores), f)
