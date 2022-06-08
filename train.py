@@ -317,7 +317,7 @@ def main(args: argparse.Namespace):
     np.random.seed(0)
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(False)
-    tf.debugging.enable_check_numerics()
+    # tf.debugging.enable_check_numerics()
 
     # Choose the dataset
     if args.data == "cep":
@@ -346,7 +346,6 @@ def main(args: argparse.Namespace):
         starting_run_number = 0
 
     for i in tqdm(range(starting_run_number, len(x)), desc="Epochs", leave=True, position=0):
-        i = 5
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
