@@ -16,6 +16,7 @@ from time import process_time
 import matplotlib.pyplot as plt
 from typing import Optional
 from pathlib import Path
+import pickle
 
 
 def ml_estimate(x):
@@ -41,6 +42,7 @@ def train(
     likelihood_variance,
     work_dir,
     data_name,
+    jitter,
     causal: Optional[bool] = None,
     run_number: Optional[int] = None,
     random_restart_number: Optional[int] = None,
@@ -76,14 +78,14 @@ def train(
     # Find the best lengthscale for the observed bit
     sq_exp = gpflow.kernels.SquaredExponential()
     sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(100, tf.float64)
+        low=tf.cast(1e-6, tf.float64), high=tf.cast(1000, tf.float64)
     )
     sq_exp.lengthscales = Parameter(
         kernel_lengthscale,
         transform=sigmoid, dtype=tf.float64
     )
     sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(50, tf.float64)
+        low=tf.cast(1e-6, tf.float64), high=tf.cast(500, tf.float64)
     )
     sq_exp.variance = Parameter(kernel_variance, transform=sigmoid, dtype=tf.float64)
     m = gpflow.models.GPR(data=(x, y), kernel=sq_exp, mean_function=None)
@@ -102,7 +104,7 @@ def train(
     if not no_observed:
         kernel = gpflow.kernels.SquaredExponential()
         sigmoid = tfp.bijectors.Sigmoid(
-            low=tf.cast(1e-6, tf.float64), high=tf.cast(100, tf.float64)
+            low=tf.cast(1e-6, tf.float64), high=tf.cast(1000, tf.float64)
         )
         kernel.lengthscales = Parameter(
             [found_lengthscale] + [kernel_lengthscale],
@@ -112,7 +114,7 @@ def train(
     else:
         kernel = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
     sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(50, tf.float64)
+        low=tf.cast(1e-6, tf.float64), high=tf.cast(500, tf.float64)
     )
     kernel.variance = Parameter(kernel_variance, transform=sigmoid, dtype=tf.float64)
      # lambda = 5 in this
@@ -133,6 +135,7 @@ def train(
             X_data_mean=X_mean_init,
             X_data_var=X_var_init,
             num_inducing_variables=num_inducing,
+            jitter=jitter
         )
         m.likelihood.variance = Parameter(found_lik_var, transform=positive(lower=1e-6))
     else:
@@ -199,17 +202,22 @@ def train(
 
     if args.plot_fit and not no_observed:
         # Plot the fit to see if everything is ok
-        obs_new = np.linspace(-5, 5, 4000)[:, None]
+        obs_new = np.linspace(-10, 10, 1000)[:, None]
         # Sample from the prior
         Xnew = tfp.distributions.Normal(loc=0, scale=1).sample([obs_new.shape[0], latent_dim])
         Xnew = tf.cast(Xnew, dtype=default_float())
         Xnew = tf.concat(
             [obs_new, Xnew], axis=1
         )
-        pred_f_mean, pred_f_var = m.predict_f(
-            in_data_new=x,
+        pred_f_mean, pred_f_var = m.predict_y(
             Xnew=Xnew,
         )
+        textstr = 'kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
+            m.kernel.lengthscales.numpy()[0],m.kernel.lengthscales.numpy()[1],
+            m.kernel.variance.numpy(), m.likelihood.variance.numpy(),
+            - m.elbo().numpy()
+        )
+        plt.text(-17, 0, textstr, fontsize=8)
         plt.scatter(x, y, c='r')
         plt.plot(obs_new, pred_f_mean, c='b', alpha=0.25)
         plt.fill_between(obs_new[:, 0], (pred_f_mean + 2 * np.sqrt(pred_f_var))[:, 0], (pred_f_mean - 2 * np.sqrt(pred_f_var))[:,0], alpha=0.5)
@@ -217,6 +225,7 @@ def train(
         save_dir.mkdir(
             parents=True, exist_ok=True
         )
+        plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
             save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}"
@@ -225,7 +234,7 @@ def train(
     return loss
 
 
-def calculate_causal_score(args, seed, x, y, run_number, restart_number):
+def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal):
     np.random.seed(seed)
     tf.random.set_seed(seed)
     # Set seed for each run (useful for debugging)
@@ -251,83 +260,64 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number):
     # Make sure data is standardised
     x_train = StandardScaler().fit_transform(x_train).astype(np.float64)
     y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
-    # x -> y score
-    loss_x = train(
-        x=np.random.normal(loc=0, scale=1,size=x_train.shape),
-        y=x_train,
-        no_observed=True,
-        num_inducing=args.num_inducing,
-        kernel_variance=kernel_variance,
-        kernel_lengthscale=kernel_lengthscale[0],
-        likelihood_variance=likelihood_variance[0],
-        work_dir=args.work_dir,
-        data_name=args.data,
-        run_number=run_number,
-        random_restart_number=restart_number,
-    )
-    if args.debug:
-        loss_x_ml = ml_estimate(x_train)
-        print(f"Log: {loss_x_ml}, {loss_x}")
-    print("Y|X")
-    loss_y_x = train(
-        x=x_train,
-        y=y_train,
-        num_inducing=args.num_inducing,
-        kernel_variance=kernel_variance,
-        kernel_lengthscale=kernel_lengthscale[1],
-        likelihood_variance=likelihood_variance[1],
-        work_dir=args.work_dir,
-        data_name=args.data,
-        run_number=run_number,
-        random_restart_number=restart_number,
-        causal=True,
-    )
-    # x <- y score
-    loss_y = train(
-        x=np.random.normal(loc=0, scale=1,size=x_train.shape),
-        y=y_train,
-        no_observed=True,
-        num_inducing=args.num_inducing,
-        kernel_variance=kernel_variance,
-        kernel_lengthscale=kernel_lengthscale[2],
-        likelihood_variance=likelihood_variance[2],
-        work_dir=args.work_dir,
-        data_name=args.data,
-        run_number=run_number,
-        random_restart_number=restart_number,
-    )
-    if args.debug:
-        loss_y_ml = ml_estimate(y_train)
-        print(f"Log: {loss_y_ml}, {loss_y}")
-    print("X|Y")
-    loss_x_y = train(
-        x=y_train,
-        y=x_train,
-        num_inducing=args.num_inducing,
-        kernel_variance=kernel_variance,
-        kernel_lengthscale=kernel_lengthscale[3],
-        likelihood_variance=likelihood_variance[3],
-        work_dir=args.work_dir,
-        data_name=args.data,
-        run_number=run_number,
-        random_restart_number=restart_number,
-        causal=False,
-    )
-    return (loss_x, loss_y_x, loss_y, loss_x_y)
-    # Save time
-    # if min(rr_loss_x) + min(rr_loss_y_x) < min(rr_loss_y) + min(rr_loss_x_y):
-    #     break
+    num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    jitter_bug = 1e-6
+    # Dynamically reduce the inducing points if there is an error
+    finish = 0
+    while finish == 0:
+        try:
+            # x -> y score
+            loss_x = train(
+                x=np.random.normal(loc=0, scale=1,size=x_train.shape),
+                y=x_train,
+                no_observed=True,
+                num_inducing=num_inducing,
+                kernel_variance=kernel_variance,
+                kernel_lengthscale=kernel_lengthscale[0],
+                likelihood_variance=likelihood_variance[0],
+                work_dir=args.work_dir,
+                data_name=args.data,
+                run_number=run_number,
+                random_restart_number=restart_number,
+                jitter=None
+            )
+            if args.debug:
+                loss_x_ml = ml_estimate(x_train)
+                print(f"Log: {loss_x_ml}, {loss_x}")
+            print("Y|X" if causal else "X|Y")
+            loss_y_x = train(
+                x=x_train,
+                y=y_train,
+                num_inducing=num_inducing,
+                kernel_variance=kernel_variance,
+                kernel_lengthscale=kernel_lengthscale[1],
+                likelihood_variance=likelihood_variance[1],
+                work_dir=args.work_dir,
+                data_name=args.data,
+                run_number=run_number,
+                random_restart_number=restart_number,
+                causal=causal,
+                jitter=jitter_bug
+            )
+            finish = 1
+        except Exception as e:
+            print(e)
+            print(f"Reducing inducing to {jitter_bug * 10}")
+            jitter_bug *= 10
+            if jitter_bug > 1:
+                finish = 1
+    if loss_x is None:
+        raise ValueError("jitter is more than 1!")
+    return (loss_x, loss_y_x)
 
 
 def main(args: argparse.Namespace):
+    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
+    save_path = Path(f'{args.work_dir}/results/{save_name}.p')
     np.random.seed(0)
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(False)
-    # tf.debugging.enable_check_numerics()
-
-    correct_idx = []
-    wrong_idx = []
-    num_inducing = args.num_inducing
+    tf.debugging.enable_check_numerics()
 
     # Choose the dataset
     if args.data == "cep":
@@ -342,16 +332,25 @@ def main(args: argparse.Namespace):
             func_string=func_type,
             noise=noise
         )
+    if save_path.is_file():
+        with open(save_path, "rb") as f:
+            checkpoint = pickle.load(f)
+        correct_idx = checkpoint['correct_idx']
+        wrong_idx = checkpoint['wrong_idx']
+        scores = checkpoint["scores"]
+        starting_run_number = checkpoint["run_number"]
+    else:
+        correct_idx = []
+        wrong_idx = []
+        scores = []
+        starting_run_number = 0
 
-    scores = []
-    for i in tqdm(range(len(x)), desc="Epochs", leave=True, position=0):
+    for i in tqdm(range(starting_run_number, len(x)), desc="Epochs", leave=True, position=0):
+        i = 5
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
-        np.random.seed(i)
-        tf.random.set_seed(i)
         print(f'\n Run: {i}')
-        print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
 
         rr_loss_x = []
         rr_loss_y_x = []
@@ -363,8 +362,7 @@ def main(args: argparse.Namespace):
             (
                 loss_x,
                 loss_y_x,
-                loss_y,
-                loss_x_y
+
             ) = calculate_causal_score(
                 args=args,
                 seed=seed,
@@ -372,6 +370,20 @@ def main(args: argparse.Namespace):
                 y=y[i],
                 run_number=i,
                 restart_number=j,
+                causal=True
+            )
+            (
+                loss_y,
+                loss_x_y,
+
+            ) = calculate_causal_score(
+                args=args,
+                seed=seed,
+                x=y[i],
+                y=x[i],
+                run_number=i,
+                restart_number=j,
+                causal=False
             )
             if loss_x is not None:
                 rr_loss_x.append(loss_x)
@@ -393,6 +405,17 @@ def main(args: argparse.Namespace):
         else:
             wrong_idx.append(i)
         scores.append((score_x_y.numpy(), score_y_x.numpy()))
+        print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
+        # Save checkpoint
+        with open(save_path, 'wb') as f:
+            save_dict = {
+                "correct_idx": correct_idx,
+                "wrong_idx": wrong_idx,
+                "weight": weight,
+                "scores": scores,
+                "run_number": i + 1
+            }
+            pickle.dump(save_dict, f)
     return correct_idx, wrong_idx, weight, scores
 
 
@@ -431,7 +454,6 @@ if __name__ == "__main__":
     accuracy = np.sum(correct_weight) / (np.sum(correct_weight) + np.sum(wrong_weight))
     print(f"\n Scores: {scores}")
     print(f"\n Final accuracy: {accuracy}")
-    import pickle
     save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
     # save_name = "test"
     with open(f'{args.work_dir}/results/{save_name}.p', 'wb') as f:
