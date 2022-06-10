@@ -70,7 +70,7 @@ def train(
         # need a lengthscale for the latent dim as well as for the oberved
         # Lengthscale of observed is slightly larger
         kernel = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
-        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float()) * found_lengthscale * 0.07
+        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
     else:
         kernel = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
         X_mean_init = tfp.distributions.Normal(loc=0, scale=1).sample([y.shape[0], latent_dim])
