@@ -3,16 +3,15 @@ from gpflow.base import Parameter
 from gpflow.config import default_float
 from gpflow.utilities import positive
 from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
+from models.BayesGPLVM import BayesianGPLVM
 from scipy.stats import norm
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 import argparse
 import gpflow
 import numpy as np
-import os
 import tensorflow as tf
 import tensorflow_probability as tfp
-from time import process_time
 import matplotlib.pyplot as plt
 from typing import Optional
 from pathlib import Path
@@ -48,84 +47,40 @@ def train(
     random_restart_number: Optional[int] = None,
     no_observed=False,
 ):
-    # if len(x) < num_inducing + 1:
-    #     inducing = x
-    # else:
-    #     # kmeans = KMeans(n_clusters=num_inducing).fit(x)
-    #     # inducing = kmeans.cluster_centers_
-    #     inducing_idx = np.random.choice(x.shape[0], num_inducing, replace=False)
-    #     inducing = np.take(x, inducing_idx, axis=0)
-
-    # sq_exp = gpflow.kernels.SquaredExponential()
-    # sq_exp.variance.assign(1.0)
-    #  # lambda = 5 in this
-    # sq_exp.lengthscales.assign(1. / 10)
-
-    # mat32 = gpflow.kernels.Matern32()
-    # mat32.variance.assign(1.0)
-    # mat32.lengthscales.assign(1. / 10)
-
-    # mat52 = gpflow.kernels.Matern52()
-    # mat52.variance.assign(1.0)
-    # mat52.lengthscales.assign(1. / 10)
-
-    # kernel = gpflow.kernels.Sum([sq_exp, mat32, mat52])
-
-    # m = gpflow.models.SGPR((x, y), kernel, inducing)
-    # # kappa = 10 in this
-    # m.likelihood.variance.assign(1. / (100 ** 2))
-
-    # Find the best lengthscale for the observed bit
-    sq_exp = gpflow.kernels.SquaredExponential()
-    sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(1000, tf.float64)
-    )
-    sq_exp.lengthscales = Parameter(
-        kernel_lengthscale,
-        transform=sigmoid, dtype=tf.float64
-    )
-    sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(500, tf.float64)
-    )
-    sq_exp.variance = Parameter(kernel_variance, transform=sigmoid, dtype=tf.float64)
-    m = gpflow.models.GPR(data=(x, y), kernel=sq_exp, mean_function=None)
-    m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-6))
-
-    opt = gpflow.optimizers.Scipy()
-    opt_logs = opt.minimize(
-        m.training_loss, m.trainable_variables, options=dict(maxiter=10000)
-    )
-    found_lengthscale = m.kernel.lengthscales.numpy()
-    found_lik_var = m.likelihood.variance.numpy()
-
+    tf.print(f"Init: ker_like: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}")
     latent_dim = 1
-    # need a lengthscale for the latent dim as well as for the oberved
-    # Lengthscale of observed is slightly larger
     if not no_observed:
-        kernel = gpflow.kernels.SquaredExponential()
-        sigmoid = tfp.bijectors.Sigmoid(
-            low=tf.cast(1e-6, tf.float64), high=tf.cast(1000, tf.float64)
+        # Find the best lengthscale for the observed bit
+        sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
+        sq_exp.variance.assign(kernel_variance)
+
+        m = gpflow.models.GPR(data=(x, y), kernel=sq_exp, mean_function=None)
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
+
+        opt = gpflow.optimizers.Scipy()
+        opt_logs = opt.minimize(
+            m.training_loss, m.trainable_variables, options=dict(maxiter=10000)
         )
-        kernel.lengthscales = Parameter(
-            [found_lengthscale] + [kernel_lengthscale],
-            transform=sigmoid, dtype=tf.float64
-        )
-        # kernel.lengthscales = tf.cast(kern_len_param, dtype=default_float())
+        found_lengthscale = float(m.kernel.lengthscales.numpy())
+        found_lik_var = m.likelihood.variance.numpy()
+        tf.print(f"Found: ker_like: {found_lengthscale}, ker_var: {m.kernel.variance.numpy()}, like_var: {found_lik_var}")
+
+        X_mean_init = y - m.predict_f(x)[0]
+        X_var_init = tf.math.square(X_mean_init - tf.math.reduce_mean(X_mean_init, axis=0)) + 1
+        # need a lengthscale for the latent dim as well as for the oberved
+        # Lengthscale of observed is slightly larger
+        kernel = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
+        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float()) * found_lengthscale * 0.07
     else:
         kernel = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
-    sigmoid = tfp.bijectors.Sigmoid(
-        low=tf.cast(1e-6, tf.float64), high=tf.cast(500, tf.float64)
-    )
-    kernel.variance = Parameter(kernel_variance, transform=sigmoid, dtype=tf.float64)
-     # lambda = 5 in this
+        X_mean_init = tfp.distributions.Normal(loc=0, scale=1).sample([y.shape[0], latent_dim])
+        X_mean_init = tf.cast(y, dtype=default_float())
 
-    X_mean_init = y - m.predict_f(x)[0]
-    # X_mean_init = ops.pca_reduce(y, latent_dim)
-    # X_mean_init = tfp.distributions.Normal(loc=0, scale=1).sample([y.shape[0], latent_dim])
-    # X_mean_init = tf.cast(X_mean_init, dtype=default_float())
-    # X_mean_init = tf.zeros((y.shape[0], latent_dim), dtype=default_float())
-    X_var_init = tf.math.square(X_mean_init - tf.math.reduce_mean(X_mean_init, axis=0)) + 1
-    # X_var_init = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+        X_var_init = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+
+        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+
+    kernel.variance.assign(kernel_variance)
 
     if not no_observed:
         m = PartObsBayesianGPLVM(
@@ -135,18 +90,21 @@ def train(
             X_data_mean=X_mean_init,
             X_data_var=X_var_init,
             num_inducing_variables=num_inducing,
+            X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(found_lik_var, transform=positive(lower=1e-6))
+        m.likelihood.variance = Parameter(found_lik_var, transform=positive())
     else:
-        m = gpflow.models.BayesianGPLVM(
+        m = BayesianGPLVM(
             data=y,
             kernel=kernel,
-            X_data_mean=tf.zeros((y.shape[0], latent_dim), dtype=default_float()),
+            X_data_mean=X_mean_init,
             X_data_var=X_var_init,
             num_inducing_variables=num_inducing,
+            X_prior_var=x_prior_var,
+            jitter=jitter
         )
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-6))
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
 
  # Train only inducing variables
     gpflow.utilities.set_trainable(m.kernel, False)
@@ -228,47 +186,69 @@ def train(
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}"
+            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
         )
         plt.close()
+    elif args.plot_fit and no_observed:
+        # Plot the fit to see if everything is ok
+        obs_new = np.linspace(-5, 5, 1000)[:, None]
+
+        pred_y_mean, pred_y_var = m.predict_y(
+            Xnew=obs_new,
+        )
+        textstr = 'kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
+            m.kernel.lengthscales.numpy(),
+            m.kernel.variance.numpy(), m.likelihood.variance.numpy(),
+            - m.elbo().numpy()
+        )
+        plt.text(-5, 0, textstr, fontsize=8)
+        plt.scatter(m.X_data_mean, y, c='r')
+        plt.plot(obs_new, pred_y_mean, c='b', alpha=0.25)
+        plt.fill_between(obs_new[:, 0], (pred_y_mean + 2 * np.sqrt(pred_y_var))[:, 0], (pred_y_mean - 2 * np.sqrt(pred_y_var))[:,0], alpha=0.5)
+        save_dir = Path(f"{work_dir}/run_plots/{data_name}")
+        save_dir.mkdir(
+            parents=True, exist_ok=True
+        )
+        plt.subplots_adjust(left=0.25)
+        causal_direction = "causal" if causal else "anticausal"
+        plt.savefig(
+            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
+        )
+        plt.close()
+    else:
+        pass
     return loss
 
 
 def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal):
-    np.random.seed(seed)
-    tf.random.set_seed(seed)
-    # Set seed for each run (useful for debugging)
     # Sample random hyperparams, one for each experiment
-    # Kernel variance will always be 1
-    kernel_variance = 1.0
-    # Likelihood variance
-    kappa = np.random.uniform(
-        low=1.0, high=100, size=[4]
-    )
-    likelihood_variance = 1.0 / (kappa ** 2)
-    # Kernel lengthscale
-    lamda = np.random.uniform(
-        low=1.0, high=10, size=[4]
-    )
-    kernel_lengthscale = 1.0 / lamda
-    if args.debug:
-        print(
-            f"Initial values: {likelihood_variance}, {kernel_lengthscale}"
-        )
-
     x_train, y_train = x, y
     # Make sure data is standardised
     x_train = StandardScaler().fit_transform(x_train).astype(np.float64)
     y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
     num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    # Dynamically reduce the jitter if there is an error
+    kernel_variance = 2
+
     jitter_bug = 1e-6
-    # Dynamically reduce the inducing points if there is an error
     finish = 0
+    loss_x = None
     while finish == 0:
         try:
+            # Likelihood variance
+            kappa = np.random.uniform(
+                low=10.0, high=75, size=[1]
+            )
+            likelihood_variance = 1. / (kappa ** 2)
+            # Kernel lengthscale
+            lamda = np.random.uniform(
+                low=1.0, high=100, size=[1]
+            )
+            kernel_lengthscale = 1.0 / lamda
             # x -> y score
+            print("X" if causal else "Y")
             loss_x = train(
-                x=np.random.normal(loc=0, scale=1,size=x_train.shape),
+                x=np.random.normal(loc=0, scale=1, size=x_train.shape),
                 y=x_train,
                 no_observed=True,
                 num_inducing=num_inducing,
@@ -279,19 +259,38 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
                 data_name=args.data,
                 run_number=run_number,
                 random_restart_number=restart_number,
-                jitter=None
+                jitter=jitter_bug,
+                causal=causal,
             )
-            if args.debug:
-                loss_x_ml = ml_estimate(x_train)
-                print(f"Log: {loss_x_ml}, {loss_x}")
+            finish = 1
+        except Exception as e:
+            print(e)
+            print(f"Increasing jitter to {jitter_bug * 5}")
+            jitter_bug *= 10
+            if jitter_bug > 1:
+                finish = 1
+    jitter_bug = 1e-6
+    finish = 0
+    while finish == 0:
+        try:
+            # Likelihood variance
+            kappa = np.random.uniform(
+                low=10.0, high=75, size=[1]
+            )
+            likelihood_variance = 1. / (kappa ** 2)
+            # Kernel lengthscale
+            lamda = np.random.uniform(
+                low=1.0, high=100, size=[1]
+            )
+            kernel_lengthscale = 1.0 / lamda
             print("Y|X" if causal else "X|Y")
             loss_y_x = train(
                 x=x_train,
                 y=y_train,
                 num_inducing=num_inducing,
                 kernel_variance=kernel_variance,
-                kernel_lengthscale=kernel_lengthscale[1],
-                likelihood_variance=likelihood_variance[1],
+                kernel_lengthscale=kernel_lengthscale[0],
+                likelihood_variance=likelihood_variance[0],
                 work_dir=args.work_dir,
                 data_name=args.data,
                 run_number=run_number,
@@ -302,12 +301,12 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
             finish = 1
         except Exception as e:
             print(e)
-            print(f"Reducing inducing to {jitter_bug * 10}")
+            print(f"Increasing jitter to {jitter_bug * 5}")
             jitter_bug *= 10
             if jitter_bug > 1:
                 finish = 1
-    if loss_x is None:
-        raise ValueError("jitter is more than 1!")
+        if loss_x is None:
+            raise ValueError("jitter is more than 1!")
     return (loss_x, loss_y_x)
 
 
@@ -357,6 +356,8 @@ def main(args: argparse.Namespace):
         rr_loss_x_y = []
         for j in range(args.random_restarts):
             seed = args.random_restarts * i + j
+            np.random.seed(seed)
+            tf.random.set_seed(seed)
             print(f"\n Random restart: {j}")
             (
                 loss_x,
@@ -403,7 +404,7 @@ def main(args: argparse.Namespace):
             correct_idx.append(i)
         else:
             wrong_idx.append(i)
-        scores.append((score_x_y.numpy(), score_y_x.numpy()))
+        scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
         print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
         # Save checkpoint
         with open(save_path, 'wb') as f:
