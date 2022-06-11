@@ -354,7 +354,7 @@ def main(args: argparse.Namespace):
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
-        print(f'\n Run: {i}')
+        tf.print(f'\n Run: {i}')
 
         rr_loss_x = []
         rr_loss_y_x = []
@@ -364,7 +364,7 @@ def main(args: argparse.Namespace):
             seed = args.random_restarts * i + j
             np.random.seed(seed)
             tf.random.set_seed(seed)
-            print(f"\n Random restart: {j}")
+            tf.print(f"\n Random restart: {j}")
             (
                 loss_x,
                 loss_y_x,
@@ -396,7 +396,7 @@ def main(args: argparse.Namespace):
                 rr_loss_y_x.append(loss_y_x)
                 rr_loss_y.append(loss_y)
                 rr_loss_x_y.append(loss_x_y)
-                print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
+                tf.print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
         # Need to find the best losses from the list
         # Calculate losses
         if args.debug:
@@ -411,7 +411,7 @@ def main(args: argparse.Namespace):
         else:
             wrong_idx.append(i)
         scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
-        print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
+        tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
         # Save checkpoint
         with open(save_path, 'wb') as f:
             save_dict = {
