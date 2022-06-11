@@ -52,35 +52,41 @@ def train(
     if not no_observed:
         # Find the best lengthscale for the observed bit
         sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
+        linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
         sq_exp.variance.assign(kernel_variance)
 
-        m = gpflow.models.GPR(data=(x, y), kernel=sq_exp, mean_function=None)
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
+        kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
+
+        m = gpflow.models.GPR(data=(x, y), kernel=kernel, mean_function=None)
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-4))
 
         opt = gpflow.optimizers.Scipy()
         opt_logs = opt.minimize(
             m.training_loss, m.trainable_variables, options=dict(maxiter=10000)
         )
-        found_lengthscale = float(m.kernel.lengthscales.numpy())
+        found_lengthscale = float(m.kernel.kernels[0].lengthscales.numpy())
         found_lik_var = m.likelihood.variance.numpy()
-        tf.print(f"Found: ker_like: {found_lengthscale}, ker_var: {m.kernel.variance.numpy()}, like_var: {found_lik_var}")
+        tf.print(f"Found: ker_like: {found_lengthscale}, ker_var: {m.kernel.kernels[0].variance.numpy()}, like_var: {found_lik_var}")
 
         X_mean_init = y - m.predict_f(x)[0]
         X_var_init = tf.math.square(X_mean_init - tf.math.reduce_mean(X_mean_init, axis=0)) + 1
         # need a lengthscale for the latent dim as well as for the oberved
         # Lengthscale of observed is slightly larger
-        kernel = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
-        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+        sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
+        linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
+        sq_exp.variance.assign(kernel_variance)
+        kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
+        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float()) * 0.1
     else:
         kernel = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
+        kernel.variance.assign(kernel_variance)
+
         X_mean_init = tfp.distributions.Normal(loc=0, scale=1).sample([y.shape[0], latent_dim])
         X_mean_init = tf.cast(y, dtype=default_float())
 
         X_var_init = tf.ones((y.shape[0], latent_dim), dtype=default_float())
 
         x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
-
-    kernel.variance.assign(kernel_variance)
 
     if not no_observed:
         m = PartObsBayesianGPLVM(
@@ -93,7 +99,7 @@ def train(
             X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(found_lik_var, transform=positive())
+        m.likelihood.variance = Parameter(found_lik_var, transform=positive(lower=1e-4))
     else:
         m = BayesianGPLVM(
             data=y,
@@ -104,7 +110,7 @@ def train(
             X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-4))
 
  # Train only inducing variables
     gpflow.utilities.set_trainable(m.kernel, False)
@@ -171,8 +177,8 @@ def train(
             Xnew=Xnew,
         )
         textstr = 'kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            m.kernel.lengthscales.numpy()[0],m.kernel.lengthscales.numpy()[1],
-            m.kernel.variance.numpy(), m.likelihood.variance.numpy(),
+            m.kernel.kernels[0].lengthscales.numpy()[0], m.kernel.kernels[0].lengthscales.numpy()[1],
+            m.kernel.kernels[0].variance.numpy(), m.likelihood.variance.numpy(),
             - m.elbo().numpy()
         )
         plt.text(-17, 0, textstr, fontsize=8)
@@ -275,12 +281,12 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
         try:
             # Likelihood variance
             kappa = np.random.uniform(
-                low=10.0, high=75, size=[1]
+                low=10.0, high=50, size=[1]
             )
             likelihood_variance = 1. / (kappa ** 2)
             # Kernel lengthscale
             lamda = np.random.uniform(
-                low=1.0, high=100, size=[1]
+                low=1.0, high=10, size=[1]
             )
             kernel_lengthscale = 1.0 / lamda
             print("Y|X" if causal else "X|Y")

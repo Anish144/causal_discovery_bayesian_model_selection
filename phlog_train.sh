@@ -3,4 +3,4 @@ python3 train.py \
     --data="cep" \
     --num_inducing=100 \
     --plot_fit \
-    --random_restarts=10 \
+    --random_restarts=20 \
