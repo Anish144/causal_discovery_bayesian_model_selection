@@ -252,7 +252,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
             )
             kernel_lengthscale = 1.0 / lamda
             # x -> y score
-            print("X" if causal else "Y")
+            tf.print("X" if causal else "Y")
             loss_x = train(
                 x=np.random.normal(loc=0, scale=1, size=x_train.shape),
                 y=x_train,
@@ -270,8 +270,8 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
             )
             finish = 1
         except Exception as e:
-            print(e)
-            print(f"Increasing jitter to {jitter_bug * 5}")
+            tf.print(e)
+            tf.print(f"Increasing jitter to {jitter_bug * 3}")
             jitter_bug *= 10
             if jitter_bug > 1:
                 finish = 1
@@ -289,7 +289,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
                 low=1.0, high=10, size=[1]
             )
             kernel_lengthscale = 1.0 / lamda
-            print("Y|X" if causal else "X|Y")
+            tf.print("Y|X" if causal else "X|Y")
             loss_y_x = train(
                 x=x_train,
                 y=y_train,
@@ -306,8 +306,8 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
             )
             finish = 1
         except Exception as e:
-            print(e)
-            print(f"Increasing jitter to {jitter_bug * 5}")
+            tf.print(e)
+            tf.print(f"Increasing jitter to {jitter_bug * 3}")
             jitter_bug *= 10
             if jitter_bug > 1:
                 finish = 1
