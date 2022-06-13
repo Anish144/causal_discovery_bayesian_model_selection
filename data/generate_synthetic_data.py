@@ -1,4 +1,22 @@
+from random import sample
 import numpy as np
+from sklearn.mixture import GaussianMixture
+
+
+def sample_mixture_of_gaussian(
+    num_dataset: int,
+    sample_size: int,
+):
+    num_components = 4
+    _weights = np.random.gamma(shape=1, scale=1, size=num_components)
+    data_gmm = GaussianMixture(n_components=num_components)
+    data_gmm.weights_ = _weights / _weights.sum()
+    data_gmm.means_ = np.random.random((num_components, 1)) * 10
+    data_gmm.covariances_ = [np.random.random((1, 1)) for _ in range(num_components)]
+    dataset = np.zeros((num_dataset, sample_size, 1))
+    for i in range(num_dataset):
+        dataset[i, :, :] = data_gmm.sample(sample_size)[0]
+    return dataset
 
 
 def normal_noise(
@@ -27,8 +45,9 @@ def additive_noise_a(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = cause ** 3 + cause + eval(f"{noise}_noise")(num_dataset, sample_size)
     return cause, effect
@@ -39,8 +58,9 @@ def additive_noise_b(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = np.log(cause + 10) + cause ** 6 + eval(f"{noise}_noise")(num_dataset, sample_size)
     return cause, effect
@@ -51,8 +71,9 @@ def additive_noise_c(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = np.sin(10 * cause) + np.exp(3 * cause) + eval(f"{noise}_noise")(num_dataset, sample_size)
     return cause, effect
@@ -63,8 +84,9 @@ def multiplicative_noise_a(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     noise = eval(f"{noise}_noise")(num_dataset, sample_size)
     effect = (cause ** 3 + cause) * np.exp(noise)
@@ -76,8 +98,9 @@ def multiplicative_noise_b(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = (np.sin(10 * cause) + np.exp(3 * cause)) * np.exp(eval(f"{noise}_noise")(num_dataset, sample_size))
     return cause, effect
@@ -88,8 +111,9 @@ def multiplicative_noise_c(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = (np.log(10 + cause) + cause ** 6) * np.exp(eval(f"{noise}_noise")(num_dataset, sample_size))
     return cause, effect
@@ -100,8 +124,9 @@ def complex_noise_a(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = np.power(np.log(10 + cause) + cause ** 2, eval(f"{noise}_noise")(num_dataset, sample_size))
     return cause, effect
@@ -112,8 +137,9 @@ def complex_noise_b(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     noise_term = np.abs(eval(f"{noise}_noise")(num_dataset, sample_size))
     effect = np.log(cause + 10) + np.power(cause ** 2, noise_term)
@@ -125,8 +151,9 @@ def complex_noise_c(
     sample_size: int,
     noise: str
 ):
-    cause = np.random.normal(
-        loc=0., scale=1., size=(num_dataset, sample_size, 1)
+    cause = sample_mixture_of_gaussian(
+        num_dataset=num_dataset,
+        sample_size=sample_size,
     )
     effect = np.log(cause ** 6 + 5) + cause ** 5 - np.sin((cause ** 2) * np.abs(eval(f"{noise}_noise")(num_dataset, sample_size)))
     return cause, effect
