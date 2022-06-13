@@ -5,11 +5,13 @@ module load anaconda3/personal
 module load cuda/11.2.2
 module load cudnn/8.2.4
 
-source activate gp-causal
+source activate gp
 cd $PBS_O_WORKDIR
 
 python3 /rds/general/user/ad6013/home/Research/gp-causal/train.py \
     --data=$FN \
     --num_inducing=100 \
     --random_restarts=20 \
+    --work_dir="/rds/general/user/ad6013/home/Research/gp-causal" \
+    --plot_fit \
 

@@ -133,6 +133,8 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         tmp = tf.linalg.triangular_solve(L, psi2, lower=True)
         AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
         B = AAT + tf.eye(num_inducing, dtype=default_float())
+        # tf.print(f"ker_len/: {self.kernel.lengthscales.numpy()}, ker_var: {self.kernel.variance.numpy()}, like_var: {self.likelihood.variance.numpy()}")
+
         LB = tf.linalg.cholesky(B)
         tf.debugging.assert_all_finite(
             LB, message="LB is not finite!"

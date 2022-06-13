@@ -110,7 +110,7 @@ def train(
             X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-4))
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-3))
 
  # Train only inducing variables
     gpflow.utilities.set_trainable(m.kernel, False)
@@ -243,12 +243,12 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
         try:
             # Likelihood variance
             kappa = np.random.uniform(
-                low=10.0, high=75, size=[1]
+                low=1.0, high=31, size=[1]
             )
             likelihood_variance = 1. / (kappa ** 2)
             # Kernel lengthscale
             lamda = np.random.uniform(
-                low=1.0, high=100, size=[1]
+                low=0.1, high=50, size=[1]
             )
             kernel_lengthscale = 1.0 / lamda
             # x -> y score
@@ -272,7 +272,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
         except Exception as e:
             tf.print(e)
             tf.print(f"Increasing jitter to {jitter_bug * 3}")
-            jitter_bug *= 10
+            jitter_bug *= 3
             if jitter_bug > 1:
                 finish = 1
     jitter_bug = 1e-6
@@ -308,7 +308,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
         except Exception as e:
             tf.print(e)
             tf.print(f"Increasing jitter to {jitter_bug * 3}")
-            jitter_bug *= 10
+            jitter_bug *= 3
             if jitter_bug > 1:
                 finish = 1
         if loss_x is None:
@@ -321,7 +321,7 @@ def main(args: argparse.Namespace):
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
     np.random.seed(0)
     tf.random.set_seed(0)
-    tf.config.run_functions_eagerly(False)
+    # tf.config.run_functions_eagerly(True)
     # tf.debugging.enable_check_numerics()
 
     # Choose the dataset
@@ -361,7 +361,7 @@ def main(args: argparse.Namespace):
         rr_loss_y = []
         rr_loss_x_y = []
         for j in range(args.random_restarts):
-            seed = args.random_restarts * i + j
+            seed = args.random_restarts * i + j * 3
             np.random.seed(seed)
             tf.random.set_seed(seed)
             tf.print(f"\n Random restart: {j}")
