@@ -5,7 +5,7 @@ from gpflow.utilities import positive
 from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
 from models.BayesGPLVM import BayesianGPLVM
 from scipy.stats import norm
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from tqdm import tqdm
 import argparse
 import gpflow
@@ -47,7 +47,7 @@ def train(
     random_restart_number: Optional[int] = None,
     no_observed=False,
 ):
-    tf.print(f"Init: ker_like: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}")
+    tf.print(f"Init: ker_len: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}")
     latent_dim = 1
     if not no_observed:
         # Find the best lengthscale for the observed bit
@@ -66,25 +66,37 @@ def train(
         )
         found_lengthscale = float(m.kernel.kernels[0].lengthscales.numpy())
         found_lik_var = m.likelihood.variance.numpy()
-        tf.print(f"Found: ker_like: {found_lengthscale}, ker_var: {m.kernel.kernels[0].variance.numpy()}, like_var: {found_lik_var}")
+        found_kern_var_0 = m.kernel.kernels[0].variance.numpy()
+        found_kern_var_1 = m.kernel.kernels[1].variance.numpy()
+        tf.print(f"Found: ker_len: {found_lengthscale}, ker_var: {found_kern_var_0}, like_var: {found_lik_var}")
 
         X_mean_init = y - m.predict_f(x)[0]
         X_var_init = tf.math.square(X_mean_init - tf.math.reduce_mean(X_mean_init, axis=0)) + 1
         # need a lengthscale for the latent dim as well as for the oberved
         # Lengthscale of observed is slightly larger
         sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
+        linear_kernel = gpflow.kernels.Linear(variance=found_kern_var_1)
+        sq_exp.variance.assign(found_kern_var_0)
+        kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
+        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+    else:
+        # Empirical initialisation based on the GPy code
+        # YYT = tf.cast(y @ y.T, dtype=default_float()) + tf.linalg.diag([tf.cast(1e-6, default_float()) for _ in range(y.shape[0])])
+        # EMP = np.random.multivariate_normal(np.zeros(y.shape[0]), YYT, size=latent_dim).T
+        # X_mean_init = EMP
+        # X_mean_init -= X_mean_init.mean(0)
+        # X_mean_init /= X_mean_init.std(0)
+        X_mean_init = tf.cast(y, default_float())
+        sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
         linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
         sq_exp.variance.assign(kernel_variance)
+
         kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
-        x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float()) * 0.1
-    else:
-        kernel = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
-        kernel.variance.assign(kernel_variance)
 
-        X_mean_init = tfp.distributions.Normal(loc=0, scale=1).sample([y.shape[0], latent_dim])
-        X_mean_init = tf.cast(y, dtype=default_float())
-
-        X_var_init = tf.ones((y.shape[0], latent_dim), dtype=default_float())
+        X_var_init = tf.cast(
+            np.random.uniform(0, 0.1, (y.shape[0], latent_dim)), default_float()
+        )
+        # X_var_init = tf.ones((y.shape[0], latent_dim), dtype=default_float())
 
         x_prior_var = tf.ones((y.shape[0], latent_dim), dtype=default_float())
 
@@ -112,7 +124,8 @@ def train(
         )
         m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-3))
 
- # Train only inducing variables
+    # Train only inducing variables
+    tf.print("Training inducing")
     gpflow.utilities.set_trainable(m.kernel, False)
     gpflow.utilities.set_trainable(m.likelihood, False)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
@@ -123,34 +136,57 @@ def train(
         m.trainable_variables,
         options=dict(maxiter=10000),
     )
+    tf.print("ELBO:", - m.elbo())
 
     # Train only x_var
+    tf.print("Training vars")
     gpflow.utilities.set_trainable(m.kernel, False)
     gpflow.utilities.set_trainable(m.likelihood, False)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
     gpflow.utilities.set_trainable(m.X_data_var, True)
-    gpflow.utilities.set_trainable(m.inducing_variable, False)
+    gpflow.utilities.set_trainable(m.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
         m.trainable_variables,
         options=dict(maxiter=10000),
     )
+    tf.print("ELBO:", - m.elbo())
+
+
+    # Train means
+    tf.print("Training means")
+    gpflow.utilities.set_trainable(m.kernel, False)
+    gpflow.utilities.set_trainable(m.likelihood, False)
+    gpflow.utilities.set_trainable(m.X_data_mean , True)
+    gpflow.utilities.set_trainable(m.X_data_var, False)
+    gpflow.utilities.set_trainable(m.inducing_variable, True)
+    opt = gpflow.optimizers.Scipy()
+    opt_logs = opt.minimize(
+        m.training_loss,
+        m.trainable_variables,
+        options=dict(maxiter=10000),
+    )
+    tf.print("ELBO:", - m.elbo())
+
 
     # Train all the hyperparameters
+    tf.print("Training hyper")
     gpflow.utilities.set_trainable(m.kernel, True)
     gpflow.utilities.set_trainable(m.likelihood, True)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
     gpflow.utilities.set_trainable(m.X_data_var, False)
-    gpflow.utilities.set_trainable(m.inducing_variable, False)
+    gpflow.utilities.set_trainable(m.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
         m.trainable_variables,
         options=dict(maxiter=10000),
     )
+    tf.print("ELBO:", - m.elbo())
 
     # Train everything
+    tf.print("Training everything")
     gpflow.utilities.set_trainable(m.kernel, True)
     gpflow.utilities.set_trainable(m.likelihood, True)
     gpflow.utilities.set_trainable(m.X_data_mean , True)
@@ -162,6 +198,8 @@ def train(
         m.trainable_variables,
         options=dict(maxiter=10000),
     )
+    tf.print("ELBO:", - m.elbo())
+
     loss = - m.elbo()
 
     if args.plot_fit and not no_observed:
@@ -203,8 +241,8 @@ def train(
             Xnew=obs_new,
         )
         textstr = 'kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            m.kernel.lengthscales.numpy(),
-            m.kernel.variance.numpy(), m.likelihood.variance.numpy(),
+            m.kernel.kernels[0].lengthscales.numpy(),
+            m.kernel.kernels[0].variance.numpy(), m.likelihood.variance.numpy(),
             - m.elbo().numpy()
         )
         plt.text(-5, 0, textstr, fontsize=8)
@@ -234,7 +272,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
     y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
     num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
     # Dynamically reduce the jitter if there is an error
-    kernel_variance = 2
+    kernel_variance = 1
 
     jitter_bug = 1e-6
     finish = 0
@@ -243,12 +281,12 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
         try:
             # Likelihood variance
             kappa = np.random.uniform(
-                low=1.0, high=31, size=[1]
+                low=10.0, high=31, size=[1]
             )
             likelihood_variance = 1. / (kappa ** 2)
             # Kernel lengthscale
             lamda = np.random.uniform(
-                low=0.1, high=50, size=[1]
+                low=1, high=10, size=[1]
             )
             kernel_lengthscale = 1.0 / lamda
             # x -> y score
@@ -460,7 +498,7 @@ if __name__ == "__main__":
     accuracy = np.sum(correct_weight) / (np.sum(correct_weight) + np.sum(wrong_weight))
     print(f"\n Scores: {scores}")
     print(f"\n Final accuracy: {accuracy}")
-    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
-    # save_name = "test"
+    # save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
+    save_name = "test"
     with open(f'{args.work_dir}/results/{save_name}.p', 'wb') as f:
         pickle.dump((accuracy, scores), f)

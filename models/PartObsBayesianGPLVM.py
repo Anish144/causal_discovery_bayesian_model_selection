@@ -20,6 +20,7 @@ from gpflow.models.training_mixins import InputData, InternalDataTrainingLossMix
 from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
 
 import tensorflow_probability as tfp
+from ops import cholesky
 
 
 class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
@@ -139,6 +140,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         )
         cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=self.jitter)
         L = tf.linalg.cholesky(cov_uu)
+        # L = cholesky(cov_uu)
         tf.debugging.assert_all_finite(
             L, message="L is not finite!"
         )
@@ -149,6 +151,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         LB = tf.linalg.cholesky(B)
+        # LB = cholesky(B)
         tf.debugging.assert_all_finite(
             LB, message="LB is not finite!"
         )
