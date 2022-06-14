@@ -71,7 +71,9 @@ def train(
         tf.print(f"Found: ker_len: {found_lengthscale}, ker_var: {found_kern_var_0}, like_var: {found_lik_var}")
 
         X_mean_init = y - m.predict_f(x)[0]
-        X_var_init = tf.math.square(X_mean_init - tf.math.reduce_mean(X_mean_init, axis=0)) + 1
+        X_var_init = tf.cast(
+            np.random.uniform(0, 0.1, (y.shape[0], latent_dim)), default_float()
+        )
         # need a lengthscale for the latent dim as well as for the oberved
         # Lengthscale of observed is slightly larger
         sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[found_lengthscale] + [found_lengthscale * 0.67])
