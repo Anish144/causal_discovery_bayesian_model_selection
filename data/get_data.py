@@ -2,11 +2,23 @@ from data.generate_synthetic_data import additive_noise_a, additive_noise_b, add
 from data.generate_synthetic_data import multiplicative_noise_a, multiplicative_noise_b, multiplicative_noise_c
 from data.generate_synthetic_data import complex_noise_a, complex_noise_b, complex_noise_c
 from data.pairs.generate_pairs import TubingenPairs
+from data.sim_pairs.generate_sim_pairs import SimPairs
 import numpy as np
 
 
 def get_tubingen_pairs_dataset(data_path):
     data_gen = TubingenPairs(path=data_path)
+
+    x, y, weight = [], [], []
+    for i in data_gen.pairs_generator():
+        x.append(i[0])
+        y.append(i[1])
+        weight.append(i[2])
+    return x, y, weight
+
+
+def get_simulated_pairs_dataset(data_path):
+    data_gen = SimPairs(path=data_path)
 
     x, y, weight = [], [], []
     for i in data_gen.pairs_generator():

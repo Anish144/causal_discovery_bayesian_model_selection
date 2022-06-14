@@ -1,4 +1,4 @@
-from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset
+from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset, get_simulated_pairs_dataset
 from gpflow.base import Parameter
 from gpflow.config import default_float
 from gpflow.utilities import positive
@@ -369,6 +369,10 @@ def main(args: argparse.Namespace):
         x, y, weight = get_tubingen_pairs_dataset(
             data_path=f'{args.work_dir}/data/pairs/files'
         )
+    elif args.data == "sim":
+        x, y, weight = get_simulated_pairs_dataset(
+            data_path=f'{args.work_dir}/data/sim_pairs/files'
+        )
     else:
         func_type, noise = args.data.split("-")
         x, y, weight = get_synthetic_dataset(
@@ -500,7 +504,7 @@ if __name__ == "__main__":
     accuracy = np.sum(correct_weight) / (np.sum(correct_weight) + np.sum(wrong_weight))
     print(f"\n Scores: {scores}")
     print(f"\n Final accuracy: {accuracy}")
-    # save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
-    save_name = "test"
+    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
+    # save_name = "test"
     with open(f'{args.work_dir}/results/{save_name}.p', 'wb') as f:
         pickle.dump((accuracy, scores), f)
