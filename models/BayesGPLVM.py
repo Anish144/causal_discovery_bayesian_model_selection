@@ -23,6 +23,7 @@ from gpflow.models.util import InducingVariablesLike, data_input_to_tensor, indu
 
 import tensorflow_probability as tfp
 from ops import cholesky
+from decimal import Decimal
 
 
 class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
@@ -129,20 +130,31 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             L, message="L is not finite!"
         )
         sigma2 = self.likelihood.variance
-
+        # import pdb; pdb.set_trace()
         # Compute intermediate matrices
         A = tf.linalg.triangular_solve(L, tf.transpose(psi1), lower=True)
         tmp = tf.linalg.triangular_solve(L, psi2, lower=True)
         AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         # tf.print(f"ker_len/: {self.kernel.lengthscales.numpy()}, ker_var: {self.kernel.variance.numpy()}, like_var: {self.likelihood.variance.numpy()}")
+        # tf.print(f"Cond cov_uu: {Decimal(np.linalg.cond(cov_uu.numpy())):.2E}, Cond B: {Decimal(np.linalg.cond(B.numpy())):.2E}" )
+        # tf.print(f"Like var: {Decimal(sigma2.numpy().item()):.2E}, Latent lengthscale: {Decimal(self.kernel.kernels[0].lengthscales.numpy()[0].item()):.2E}")
         tf.debugging.assert_all_finite(
             B, message="B is not finite!"
         )
         LB = tf.linalg.cholesky(B)
         # LB = cholesky(B)
+        # if np.isnan(LB.numpy()).sum() > 0:
+        #     import pdb; pdb.set_trace()
         tf.debugging.assert_all_finite(
-            LB, message="LB is not finite!"
+            LB, message="LB is not finite! "
+            # f" cond cov_uu: {np.linalg.cond(cov_uu.numpy())}"
+            # f" cond L: {np.linalg.cond(L.numpy())}"
+            # f" cond psi2: {np.linalg.cond(psi2.numpy())}"
+            # f" cond tmp: {np.linalg.cond(tmp.numpy())}"
+            # f" cond AAT: {np.linalg.cond(AAT.numpy())}"
+            # f" cond B: {np.linalg.cond(B.numpy())}"
+            # f" like_var: {sigma2.numpy()}"
         )
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
         c = tf.linalg.triangular_solve(LB, tf.linalg.matmul(A, Y_data), lower=True) / sigma2
@@ -234,3 +246,14 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         self, data: RegressionData, full_cov: bool = False, full_output_cov: bool = False
     ) -> tf.Tensor:
         raise NotImplementedError
+
+
+def check_condition_number(matrix):
+    eig_B = tf.linalg.eigvals(
+        matrix, name=None
+    )
+    eig_real = tf.math.real(eig_B)
+    max_eig = tf.math.abs(tf.reduce_max(eig_real))
+    min_eig = tf.math.abs(tf.reduce_min(eig_real))
+    condition_number = max_eig / min_eig
+    return condition_number

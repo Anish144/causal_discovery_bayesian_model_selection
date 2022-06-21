@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from typing import Optional
 from pathlib import Path
 import pickle
+import os
 
 
 def ml_estimate(x):
@@ -59,7 +60,7 @@ def train(
         kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
 
         m = gpflow.models.GPR(data=(x, y), kernel=kernel, mean_function=None)
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-4))
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
 
         opt = gpflow.optimizers.Scipy()
         opt_logs = opt.minimize(
@@ -114,7 +115,7 @@ def train(
             X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(found_lik_var, transform=positive(lower=1e-4))
+        m.likelihood.variance = Parameter(found_lik_var, transform=positive())
     else:
         m = BayesianGPLVM(
             data=y,
@@ -125,7 +126,7 @@ def train(
             X_prior_var=x_prior_var,
             jitter=jitter
         )
-        m.likelihood.variance = Parameter(likelihood_variance, transform=positive(lower=1e-3))
+        m.likelihood.variance = Parameter(likelihood_variance, transform=positive())
 
     # Train only inducing variables
     tf.print("Training inducing")
@@ -133,6 +134,7 @@ def train(
     gpflow.utilities.set_trainable(m.likelihood, False)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
     gpflow.utilities.set_trainable(m.X_data_var, False)
+    gpflow.utilities.set_trainable(m.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
@@ -147,7 +149,7 @@ def train(
     gpflow.utilities.set_trainable(m.likelihood, False)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
     gpflow.utilities.set_trainable(m.X_data_var, True)
-    gpflow.utilities.set_trainable(m.inducing_variable, True)
+    gpflow.utilities.set_trainable(m.inducing_variable, False)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
@@ -163,7 +165,7 @@ def train(
     gpflow.utilities.set_trainable(m.likelihood, False)
     gpflow.utilities.set_trainable(m.X_data_mean , True)
     gpflow.utilities.set_trainable(m.X_data_var, False)
-    gpflow.utilities.set_trainable(m.inducing_variable, True)
+    gpflow.utilities.set_trainable(m.inducing_variable, False)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
@@ -179,7 +181,7 @@ def train(
     gpflow.utilities.set_trainable(m.likelihood, True)
     gpflow.utilities.set_trainable(m.X_data_mean , False)
     gpflow.utilities.set_trainable(m.X_data_var, False)
-    gpflow.utilities.set_trainable(m.inducing_variable, True)
+    gpflow.utilities.set_trainable(m.inducing_variable, False)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         m.training_loss,
@@ -280,19 +282,18 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal,
     jitter_bug = 1e-6
     finish = 0
     loss_x = None
+    # Likelihood variance
+    kappa = np.random.uniform(
+        low=1.0, high=100, size=[1]
+    )
+    likelihood_variance = 1. / (kappa ** 2)
+    # Kernel lengthscale
+    lamda = np.random.uniform(
+        low=1, high=100, size=[1]
+    )
+    kernel_lengthscale = 1.0 / lamda
     while finish == 0:
         try:
-            # Likelihood variance
-            kappa = np.random.uniform(
-                low=10.0, high=31, size=[1]
-            )
-            likelihood_variance = 1. / (kappa ** 2)
-            # Kernel lengthscale
-            lamda = np.random.uniform(
-                low=1, high=10, size=[1]
-            )
-            kernel_lengthscale = 1.0 / lamda
-            # x -> y score
             tf.print("X" if causal else "Y")
             loss_x = train(
                 x=np.random.normal(loc=0, scale=1, size=x_train.shape),
@@ -313,24 +314,27 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal,
             finish = 1
         except Exception as e:
             tf.print(e)
-            tf.print(f"Increasing jitter to {jitter_bug * 3}")
-            jitter_bug *= 3
+            tf.print(f"Increasing jitter to {jitter_bug * 10}")
+            jitter_bug *= 10
             if jitter_bug > 1:
                 finish = 1
     jitter_bug = 1e-6
     finish = 0
+    kernel_variance = np.random.uniform(
+        low=1.0, high=10, size=[1]
+    )[0]
+    # Likelihood variance
+    kappa = np.random.uniform(
+        low=1.0, high=100, size=[1]
+    )
+    likelihood_variance = 1. / (kappa ** 2)
+    # Kernel lengthscale
+    lamda = np.random.uniform(
+        low=1.0, high=100, size=[1]
+    )
+    kernel_lengthscale = 1.0 / lamda
     while finish == 0:
         try:
-            # Likelihood variance
-            kappa = np.random.uniform(
-                low=10.0, high=50, size=[1]
-            )
-            likelihood_variance = 1. / (kappa ** 2)
-            # Kernel lengthscale
-            lamda = np.random.uniform(
-                low=1.0, high=10, size=[1]
-            )
-            kernel_lengthscale = 1.0 / lamda
             tf.print("Y|X" if causal else "X|Y")
             loss_y_x = train(
                 x=x_train,
@@ -350,8 +354,8 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal,
             finish = 1
         except Exception as e:
             tf.print(e)
-            tf.print(f"Increasing jitter to {jitter_bug * 3}")
-            jitter_bug *= 3
+            tf.print(f"Increasing jitter to {jitter_bug * 10}")
+            jitter_bug *= 10
             if jitter_bug > 1:
                 finish = 1
         if loss_x is None:
@@ -396,8 +400,33 @@ def main(args: argparse.Namespace):
         wrong_idx = []
         scores = []
         starting_run_number = 0
-
+    wrong = [1,
+        8,
+        9,
+        10,
+        11,
+        13,
+        15,
+        18,
+        23,
+        25,
+        31,
+        33,
+        38,
+        39,
+        46,
+        48,
+        55,
+        58,
+        63,
+        71,
+        74,
+        76,
+        84,
+        87]
     for i in tqdm(range(starting_run_number, len(x)), desc="Epochs", leave=True, position=0):
+        if i not in wrong:
+            continue
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
@@ -475,7 +504,7 @@ def main(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--work_dir', '-w', type=str, required=True,
