@@ -41,7 +41,8 @@ def train(
     likelihood_variance,
     work_dir,
     data_name,
-    jitter,
+    jitter: float,
+    save_name: str,
     causal: Optional[bool] = None,
     run_number: Optional[int] = None,
     random_restart_number: Optional[int] = None,
@@ -225,7 +226,7 @@ def train(
         plt.scatter(x, y, c='r')
         plt.plot(obs_new, pred_f_mean, c='b', alpha=0.25)
         plt.fill_between(obs_new[:, 0], (pred_f_mean + 2 * np.sqrt(pred_f_var))[:, 0], (pred_f_mean - 2 * np.sqrt(pred_f_var))[:,0], alpha=0.5)
-        save_dir = Path(f"{work_dir}/run_plots/{data_name}")
+        save_dir = Path(f"{work_dir}/run_plots/{save_name}")
         save_dir.mkdir(
             parents=True, exist_ok=True
         )
@@ -251,7 +252,7 @@ def train(
         plt.scatter(m.X_data_mean, y, c='r')
         plt.plot(obs_new, pred_y_mean, c='b', alpha=0.25)
         plt.fill_between(obs_new[:, 0], (pred_y_mean + 2 * np.sqrt(pred_y_var))[:, 0], (pred_y_mean - 2 * np.sqrt(pred_y_var))[:,0], alpha=0.5)
-        save_dir = Path(f"{work_dir}/run_plots/{data_name}")
+        save_dir = Path(f"{work_dir}/run_plots/{save_name}")
         save_dir.mkdir(
             parents=True, exist_ok=True
         )
@@ -266,7 +267,7 @@ def train(
     return loss
 
 
-def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal):
+def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal, save_name):
     # Sample random hyperparams, one for each experiment
     x_train, y_train = x, y
     # Make sure data is standardised
@@ -307,6 +308,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
                 random_restart_number=restart_number,
                 jitter=jitter_bug,
                 causal=causal,
+                save_name=save_name
             )
             finish = 1
         except Exception as e:
@@ -342,7 +344,8 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
                 run_number=run_number,
                 random_restart_number=restart_number,
                 causal=causal,
-                jitter=jitter_bug
+                jitter=jitter_bug,
+                save_name=save_name
             )
             finish = 1
         except Exception as e:
@@ -357,7 +360,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal)
 
 
 def main(args: argparse.Namespace):
-    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
+    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}-numind{args.num_inducing}"
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
     np.random.seed(0)
     tf.random.set_seed(0)
@@ -420,7 +423,8 @@ def main(args: argparse.Namespace):
                 y=y[i],
                 run_number=i,
                 restart_number=j,
-                causal=True
+                causal=True,
+                save_name=save_name
             )
             (
                 loss_y,
@@ -433,7 +437,8 @@ def main(args: argparse.Namespace):
                 y=x[i],
                 run_number=i,
                 restart_number=j,
-                causal=False
+                causal=False,
+                save_name=save_name
             )
             if loss_x is not None:
                 rr_loss_x.append(loss_x)
@@ -466,7 +471,7 @@ def main(args: argparse.Namespace):
                 "run_number": i + 1
             }
             pickle.dump(save_dict, f)
-    return correct_idx, wrong_idx, weight, scores
+    return correct_idx, wrong_idx, weight, scores, save_name
 
 
 if __name__ == "__main__":
@@ -498,13 +503,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with tf.device('gpu'):
         tf.print(tf.config.list_physical_devices('GPU'))
-        corr, wrong, weight, scores = main(args)
+        corr, wrong, weight, scores, save_name = main(args)
     correct_weight = [weight[i] for i in corr]
     wrong_weight = [weight[i] for i in wrong]
     accuracy = np.sum(correct_weight) / (np.sum(correct_weight) + np.sum(wrong_weight))
     print(f"\n Scores: {scores}")
     print(f"\n Final accuracy: {accuracy}")
-    save_name = f"fullscore-{args.data}-gplvm-sqexp-reinit{args.random_restarts}"
     # save_name = "test"
     with open(f'{args.work_dir}/results/{save_name}.p', 'wb') as f:
-        pickle.dump((accuracy, scores), f)
+        save_dict = {
+            "correct_idx": corr,
+            "wrong_idx": wrong,
+            "weight": weight,
+            "scores": scores,
+            "run_number": 100
+        }
+        pickle.dump(save_dict, f)
