@@ -1,10 +1,3 @@
-#############################
-##
-## Example Condor job specification
-##
-##############################
-
-# This is a comment.
 
 # This defines what job universe we want the job to run in.
 # 'vanilla' is the simplest option for basic command execution.
@@ -12,7 +5,7 @@
 universe        = vanilla
 
 # This defines the path of the executable we want to run.
-executable      = /vol/bitbucket/ad6013/Research/gp-causal/phlog_train.sh
+executable      = /vol/bitbucket/ad6013/Research/gp-causal/condor_train.sh
 
 # This specifies where data sent to STDOUT by the executable should be
 # directed to.

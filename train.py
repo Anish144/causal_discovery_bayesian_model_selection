@@ -320,9 +320,7 @@ def calculate_causal_score(args, seed, x, y, run_number, restart_number, causal,
                 finish = 1
     jitter_bug = 1e-6
     finish = 0
-    kernel_variance = np.random.uniform(
-        low=1.0, high=10, size=[1]
-    )[0]
+    kernel_variance = 1
     # Likelihood variance
     kappa = np.random.uniform(
         low=1.0, high=100, size=[1]
