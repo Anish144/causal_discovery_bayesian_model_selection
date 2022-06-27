@@ -82,6 +82,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             Z = tf.random.shuffle(X_full)[:num_inducing_variables]
             inducing_variable = InducingPoints(Z)
 
+        # Make only the non latent part of inducing trainable
         self.inducing_variable = inducingpoint_wrapper(inducing_variable)
 
         assert X_data_mean.shape[1] == self.num_latent_gps

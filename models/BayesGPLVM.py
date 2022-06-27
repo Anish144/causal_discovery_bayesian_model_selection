@@ -105,7 +105,7 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
     def maximum_log_likelihood_objective(self) -> tf.Tensor:  # type: ignore
         return self.elbo()
 
-    def elbo(self) -> tf.Tensor:
+    def elbo(self, jitter: Optional[float] = None) -> tf.Tensor:
         """
         Construct a tensorflow function to compute the bound on the marginal
         likelihood.
@@ -123,27 +123,23 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             ),
             axis=0,
         )
+
         cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=self.jitter)
         L = tf.linalg.cholesky(cov_uu)
-        # L = cholesky(cov_uu)
+        # # L = cholesky(cov_uu)
         tf.debugging.assert_all_finite(
             L, message="L is not finite!"
         )
         sigma2 = self.likelihood.variance
-        # import pdb; pdb.set_trace()
         # Compute intermediate matrices
         A = tf.linalg.triangular_solve(L, tf.transpose(psi1), lower=True)
         tmp = tf.linalg.triangular_solve(L, psi2, lower=True)
         AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
         B = AAT + tf.eye(num_inducing, dtype=default_float())
-        # tf.print(f"ker_len/: {self.kernel.lengthscales.numpy()}, ker_var: {self.kernel.variance.numpy()}, like_var: {self.likelihood.variance.numpy()}")
-        # tf.print(f"Cond cov_uu: {Decimal(np.linalg.cond(cov_uu.numpy())):.2E}, Cond B: {Decimal(np.linalg.cond(B.numpy())):.2E}" )
-        # tf.print(f"Like var: {Decimal(sigma2.numpy().item()):.2E}, Latent lengthscale: {Decimal(self.kernel.kernels[0].lengthscales.numpy()[0].item()):.2E}")
         tf.debugging.assert_all_finite(
             B, message="B is not finite!"
         )
         LB = tf.linalg.cholesky(B)
-        # LB = cholesky(B)
         # if np.isnan(LB.numpy()).sum() > 0:
         #     import pdb; pdb.set_trace()
         tf.debugging.assert_all_finite(

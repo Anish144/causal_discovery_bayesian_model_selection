@@ -13,7 +13,7 @@ def _cholesky(matrix):
         return matrix, False
 
 
-def cholesky(matrix, max_attempts: int = 8, jitter: float = 1e-8):
+def cholesky(matrix, max_attempts: int = 5, jitter: float = 1e-8):
     def update_diag(matrix, jitter):
         diag = tf.linalg.diag_part(matrix)
         diag_add = tf.ones_like(diag) * jitter
@@ -27,19 +27,18 @@ def cholesky(matrix, max_attempts: int = 8, jitter: float = 1e-8):
     def body(state):
         _, matrix, jitter, _ = state
         res, ok = _cholesky(matrix)
-        # tf.print("OK xw= ", ok, "is_not_nan = ", tf.reduce_all(tf.math.is_finite(res)), "jitter = ", jitter)
+        tf.print("OK = ", ok, "is_not_nan = ", tf.reduce_all(tf.math.is_finite(res)), "jitter = ", jitter)
         new_matrix = tf.cond(ok, lambda: matrix, lambda: update_diag(matrix, jitter))
         break_flag = tf.logical_not(ok)
-        if jitter.numpy() > 9e-8:
-            tf.print("End", jitter)
         return [(break_flag, new_matrix, jitter * 10, res)]
 
     is_finite = tf.reduce_all(tf.math.is_finite(matrix))
-    # tf.print("is_finite = ", is_finite)
+    tf.print("is_finite = ", is_finite)
     jitter = tf.cast(jitter, matrix.dtype)
     init_state = (True, matrix, jitter, matrix)
     result = tf.while_loop(cond, body, [init_state], maximum_iterations=max_attempts)
 
+    tf.print("End", result[-1][0])
     return result[-1][-1]
 
 
