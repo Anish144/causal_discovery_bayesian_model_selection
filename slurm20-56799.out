@@ -156,3 +156,15 @@ InvalidArgumentError()
 Increasing jitter to 9.999999999999999e-06
 Y
 Training everything
+ELBO: -1200.3689714311072
+2022-07-19 12:44:29.199496: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+X|Y
+Init: ker_len: 0.03446137220292011, ker_var: 1, like_var: 0.002068321763742411
+Found: ker_len: 0.09930437427342734, ker_var: 0.49265054337181147, like_var: 0.6876648652263447
+Training everything
+ELBO: 1868.3460197347067
+2128.408186924766 2128.3104685263665 -1200.3689714311072 1868.3460197347067
+
+ Random restart: 4
+X
+Training everything
