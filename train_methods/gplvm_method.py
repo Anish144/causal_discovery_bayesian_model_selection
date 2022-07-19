@@ -375,7 +375,12 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
 
 
 def min_causal_score_gplvm(args, x, y, weight, target):
-    save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}_2"
+    # TODO: The data loading and saving etc should be separate from the model
+    # Find data index to start and end the runs on
+    data_start_idx = args.data_start
+    data_end_idx = args.data_end if args.data_end < len(x) else len(x)
+    save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}" \
+                f"_start:{data_start_idx}_end:{data_end_idx}"
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
 
     if save_path.is_file():
@@ -389,9 +394,9 @@ def min_causal_score_gplvm(args, x, y, weight, target):
         correct_idx = []
         wrong_idx = []
         scores = []
-        starting_run_number = 150
+        starting_run_number = data_start_idx
 
-    for i in tqdm(range(starting_run_number, len(x)), desc="Epochs", leave=True, position=0):
+    for i in tqdm(range(starting_run_number, data_end_idx), desc="Epochs", leave=True, position=0):
         # Find the target
         run_target = target[i]
         # Ignore the high dim

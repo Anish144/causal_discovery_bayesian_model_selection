@@ -12,5 +12,5 @@ TERM=vt100 # or TERM=xterm
     --plot_fit \
     --random_restarts=20 \
     --method='gplvm' \
-    --data_start=0 \
-    --data_end=150 \
+    --data_start=150 \
+    --data_end=300 \

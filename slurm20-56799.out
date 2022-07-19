@@ -1,0 +1,49 @@
+Tue Jul 19 11:49:31 2022       
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 470.129.06   Driver Version: 470.129.06   CUDA Version: 11.4     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                               |                      |               MIG M. |
+|===============================+======================+======================|
+|   0  NVIDIA TITAN Xp     On   | 00000000:1C:00.0 Off |                  N/A |
+| 23%   27C    P8     8W / 250W |      1MiB / 12196MiB |      0%      Default |
+|                               |                      |                  N/A |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                                  |
+|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |
+|        ID   ID                                                   Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+Epochs:   0%|          | 0/117 [00:00<?, ?it/s]2022-07-19 11:49:53.900777: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2022-07-19 11:50:00.920626: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1532] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 11423 MB memory:  -> device: 0, name: NVIDIA TITAN Xp, pci bus id: 0000:1c:00.0, compute capability: 6.1
+
+ Run: 183
+
+ Random restart: 0
+X
+Training everything
+2022-07-19 11:50:18.131268: I tensorflow/core/util/cuda_solvers.cc:179] Creating GpuSolver handles for stream 0x7a77dd0
+ELBO: 2128.4078525087789
+Y|X
+Init: ker_len: 0.19907978077586608, ker_var: 1, like_var: 0.009887299614746811
+Found: ker_len: 27.118188836228406, ker_var: 1.2493278793917269e-08, like_var: 0.9986551712945814
+Training everything
+2022-07-19 11:51:31.594504: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-19 11:51:31.595383: E tensorflow/core/kernels/check_numerics_op.cc:293] abnormal_detected_host @0x7f249d006200 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+Y|X
+Init: ker_len: 0.19907978077586608, ker_var: 1, like_var: 0.009887299614746811
+Training everything
+2022-07-19 11:51:49.202986: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-19 11:51:49.204124: E tensorflow/core/kernels/check_numerics_op.cc:293] abnormal_detected_host @0x7f249d008e00 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-05
+Y|X
+Init: ker_len: 0.19907978077586608, ker_var: 1, like_var: 0.009887299614746811
+Training everything

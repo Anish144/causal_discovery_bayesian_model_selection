@@ -81,5 +81,13 @@ if __name__ == "__main__":
         '--random_restarts', '-rr', type=int, default=1,
         help="Number of random restarts."
     )
+    parser.add_argument(
+        '--data_start', '-ds', type=int, default=0,
+        help="Data index to start the runs for."
+    )
+    parser.add_argument(
+        '--data_end', '-de', type=int, default=1000,
+        help="Data index to end the runs for."
+    )
     args = parser.parse_args()
     main(args)

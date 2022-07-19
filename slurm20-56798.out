@@ -1,0 +1,64 @@
+Tue Jul 19 11:48:32 2022       
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 470.129.06   Driver Version: 470.129.06   CUDA Version: 11.4     |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+|                               |                      |               MIG M. |
+|===============================+======================+======================|
+|   0  NVIDIA TITAN Xp     On   | 00000000:1A:00.0 Off |                  N/A |
+| 23%   32C    P8     8W / 250W |      1MiB / 12196MiB |      0%      Default |
+|                               |                      |                  N/A |
++-------------------------------+----------------------+----------------------+
+                                                                               
++-----------------------------------------------------------------------------+
+| Processes:                                                                  |
+|  GPU   GI   CI        PID   Type   Process name                  GPU Memory |
+|        ID   ID                                                   Usage      |
+|=============================================================================|
+|  No running processes found                                                 |
++-----------------------------------------------------------------------------+
+Epochs:   0%|          | 0/106 [00:00<?, ?it/s]2022-07-19 11:49:53.900764: I tensorflow/core/platform/cpu_feature_guard.cc:193] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 AVX512F FMA
+To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2022-07-19 11:50:01.121144: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1532] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 11423 MB memory:  -> device: 0, name: NVIDIA TITAN Xp, pci bus id: 0000:1a:00.0, compute capability: 6.1
+
+ Run: 44
+
+ Random restart: 0
+X
+Training everything
+2022-07-19 11:50:18.131187: I tensorflow/core/util/cuda_solvers.cc:179] Creating GpuSolver handles for stream 0x7950810
+ELBO: 2128.4078819282031
+Y|X
+Init: ker_len: 0.04495187188997101, ker_var: 1, like_var: 0.0007732386874265878
+Found: ker_len: 0.6442329350089507, ker_var: 3.8689680837203525e-05, like_var: 0.9005441246431668
+Training everything
+2022-07-19 11:51:27.972684: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-19 11:51:27.973564: E tensorflow/core/kernels/check_numerics_op.cc:293] abnormal_detected_host @0x7fa21f006200 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+Y|X
+Init: ker_len: 0.04495187188997101, ker_var: 1, like_var: 0.0007732386874265878
+Training everything
+ELBO: 2054.7998949917837
+Y
+Training everything
+ELBO: 2009.2790662624043
+X|Y
+Init: ker_len: 0.013573256492584, ker_var: 1, like_var: 0.004546101999260401
+Training everything
+2022-07-19 11:53:19.630421: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-19 11:53:19.631255: E tensorflow/core/kernels/check_numerics_op.cc:293] abnormal_detected_host @0x7fa21f005200 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+X|Y
+Init: ker_len: 0.013573256492584, ker_var: 1, like_var: 0.004546101999260401
+Training everything
+2022-07-19 11:53:25.249492: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:211] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-19 11:53:25.250243: E tensorflow/core/kernels/check_numerics_op.cc:293] abnormal_detected_host @0x7fa21f007e00 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-05
+X|Y
+Init: ker_len: 0.013573256492584, ker_var: 1, like_var: 0.004546101999260401
+Found: ker_len: 1.028539566876432, ker_var: 0.9144970776376781, like_var: 0.7126819838974056
+Training everything
