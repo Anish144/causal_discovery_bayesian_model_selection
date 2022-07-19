@@ -122,7 +122,6 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         """
         # print(self.kernel.lengthscales)
         Y_data = self.data
-
         new_mean, new_variance = self.get_new_mean_vars()
         pX = DiagonalGaussian(new_mean, new_variance)
 

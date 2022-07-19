@@ -7,7 +7,8 @@ TERM=vt100 # or TERM=xterm
 /usr/bin/nvidia-smi
 /vol/bitbucket/ad6013/envs/gp-causal-3.8/bin/python3.8 train.py \
     --work_dir="/vol/bitbucket/ad6013/Research/gp-causal" \
-    --data="sim" \
+    --data="cha_pairs" \
     --num_inducing=200 \
     --plot_fit \
     --random_restarts=20 \
+    --method='gplvm' \

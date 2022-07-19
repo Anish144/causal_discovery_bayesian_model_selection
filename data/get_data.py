@@ -1,9 +1,17 @@
 from data.generate_synthetic_data import additive_noise_a, additive_noise_b, additive_noise_c
 from data.generate_synthetic_data import multiplicative_noise_a, multiplicative_noise_b, multiplicative_noise_c
 from data.generate_synthetic_data import complex_noise_a, complex_noise_b, complex_noise_c
+from data.cha_pairs.generate_cha_pairs import ChaPairs
 from data.pairs.generate_pairs import TubingenPairs
 from data.sim_pairs.generate_sim_pairs import SimPairs
 import numpy as np
+
+
+def get_cha_pairs_dataset(data_path):
+    data_gen = ChaPairs(path=data_path)
+
+    x, y, weight, target = data_gen.return_pairs()
+    return x, y, weight, target
 
 
 def get_tubingen_pairs_dataset(data_path):

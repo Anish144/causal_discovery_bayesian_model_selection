@@ -374,8 +374,8 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
     return (loss_x, loss_y_x)
 
 
-def min_causal_score_gplvm(args, x, y, weight):
-    save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}"
+def min_causal_score_gplvm(args, x, y, weight, target):
+    save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}_2"
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
 
     if save_path.is_file():
@@ -389,9 +389,11 @@ def min_causal_score_gplvm(args, x, y, weight):
         correct_idx = []
         wrong_idx = []
         scores = []
-        starting_run_number = 0
+        starting_run_number = 150
 
     for i in tqdm(range(starting_run_number, len(x)), desc="Epochs", leave=True, position=0):
+        # Find the target
+        run_target = target[i]
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
@@ -452,9 +454,16 @@ def min_causal_score_gplvm(args, x, y, weight):
         score_y_x = min(rr_loss_y) + min(rr_loss_x_y)
         tf.print(f"Run {i}: {score_x_y} ; {score_y_x}")
         if score_x_y < score_y_x:
-            correct_idx.append(i)
+            # If target is -1 this is wrong
+            if run_target < 0:
+                wrong_idx.append(i)
+            else:
+                correct_idx.append(i)
         else:
-            wrong_idx.append(i)
+            if run_target < 0:
+                correct_idx.append(i)
+            else:
+                wrong_idx.append(i)
         scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
         tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
         # Save checkpoint
