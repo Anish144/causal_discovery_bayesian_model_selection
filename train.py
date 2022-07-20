@@ -1,5 +1,5 @@
 from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset, get_simulated_pairs_dataset
-from data.get_data import get_cha_pairs_dataset, get_gauss_pairs_dataset
+from data.get_data import get_cha_pairs_dataset, get_gauss_pairs_dataset, get_multi_pairs_dataset
 from train_methods.gplvm_method import min_causal_score_gplvm
 import argparse
 import numpy as np
@@ -37,6 +37,10 @@ def main(args: argparse.Namespace):
     elif args.data == "gauss_pairs":
         x, y, weight, target = get_gauss_pairs_dataset(
             data_path=f'{args.work_dir}/data/gauss_pairs/files'
+        )
+    elif args.data == "multi_pairs":
+        x, y, weight, target = get_multi_pairs_dataset(
+            data_path=f'{args.work_dir}/data/multi_pairs/files'
         )
     else:
         func_type, noise = args.data.split("-")

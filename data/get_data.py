@@ -3,9 +3,17 @@ from data.generate_synthetic_data import multiplicative_noise_a, multiplicative_
 from data.generate_synthetic_data import complex_noise_a, complex_noise_b, complex_noise_c
 from data.cha_pairs.generate_cha_pairs import ChaPairs
 from data.gauss_pairs.generate_gauss_pairs import GaussPairs
+from data.multi_pairs.generate_multi_pairs import MultiPairs
 from data.pairs.generate_pairs import TubingenPairs
 from data.sim_pairs.generate_sim_pairs import SimPairs
 import numpy as np
+
+
+def get_multi_pairs_dataset(data_path):
+    data_gen = MultiPairs(path=data_path)
+
+    x, y, weight, target = data_gen.return_pairs()
+    return x, y, weight, target
 
 
 def get_gauss_pairs_dataset(data_path):
