@@ -10048,3 +10048,53 @@ InvalidArgumentError()
 Increasing jitter to 9.999999999999999e-06
 Y
 Training everything
+ELBO: 3.6746326875963859
+X|Y
+Init: ker_len: 0.018920230483464563, ker_var: 1, like_var: 0.5554685926213845
+Training everything
+ELBO: 1263.3338094747483
+315.55307988235654 -590.7693706199482 3.674632687596386 1263.3338094747483
+
+ Random restart: 4
+X
+Training everything
+2022-07-27 19:41:58.127631: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-27 19:41:58.128950: E tensorflow/core/kernels/check_numerics_op.cc:292] abnormal_detected_host @0x7f8f3d002600 = {1, 0} LB is not finite! 
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+X
+Training everything
+2022-07-27 19:43:35.583779: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-27 19:43:35.584881: E tensorflow/core/kernels/check_numerics_op.cc:292] abnormal_detected_host @0x7f8f3d004b00 = {1, 0} LB is not finite! 
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-05
+X
+Training everything
+ELBO: 205.49618318800458
+2022-07-27 19:46:45.012559: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+Y|X
+Init: ker_len: 0.016781427969966144, ker_var: 1, like_var: 0.0001188227179275034
+Training everything
+ELBO: 1260.2528657380972
+Y
+Training everything
+2022-07-27 19:49:18.517698: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-27 19:49:18.519040: E tensorflow/core/kernels/check_numerics_op.cc:292] abnormal_detected_host @0x7f8f3d00c100 = {1, 0} LB is not finite! 
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+Y
+Training everything
+ELBO: 3.6146664155048711
+2022-07-27 19:51:37.001981: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+X|Y
+Init: ker_len: 0.021806528013587956, ker_var: 1, like_var: 0.0003066997048780441
+Found: ker_len: 0.6669515894766868, ker_var: 1.6014778166525308, like_var: 0.1984627982312432
+Training everything
+2022-07-27 19:53:34.571497: W tensorflow/core/kernels/linalg/cholesky_op_gpu.cu.cc:207] Cholesky decomposition was not successful for batch 0. The input might not be valid. Filling lower-triangular output with NaNs.
+2022-07-27 19:53:34.572690: E tensorflow/core/kernels/check_numerics_op.cc:292] abnormal_detected_host @0x7f8f3d011200 = {1, 0} LB is not finite!
+InvalidArgumentError()
+Increasing jitter to 9.999999999999999e-06
+X|Y
+Init: ker_len: 0.021806528013587956, ker_var: 1, like_var: 0.0003066997048780441
+Found: ker_len: 0.6669515894766868, ker_var: 1.6014778166525308, like_var: 0.1984627982312432
+Training everything
