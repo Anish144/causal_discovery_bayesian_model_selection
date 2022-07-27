@@ -185,9 +185,8 @@ def train_conditional_model(
         sq_exp = gpflow.kernels.SquaredExponential(
             lengthscales=[kernel_lengthscale] + [kernel_lengthscale * 3]
         )
-        sq_exp.variance.assign(kernel_variance)
-        linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
-        kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
+        sq_exp.variance.assign(kernel_variance + 1e-20)
+        linear_kernel = gpflow.kernels.Linear(variance=kernel_variance + 1e-20)
 
     # Define rest of the hyperparams
     X_var_init = tf.cast(
@@ -218,7 +217,7 @@ def train_conditional_model(
     )
     if use_gp:
         conditional_model.likelihood.variance = Parameter(
-            found_lik_var, transform=positive(lower=1e-6)
+            found_lik_var + 1e-20, transform=positive(lower=1e-6)
         )
     else:
         conditional_model.likelihood.variance = Parameter(

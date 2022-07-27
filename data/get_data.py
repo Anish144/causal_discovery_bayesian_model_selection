@@ -4,9 +4,17 @@ from data.generate_synthetic_data import complex_noise_a, complex_noise_b, compl
 from data.cha_pairs.generate_cha_pairs import ChaPairs
 from data.gauss_pairs.generate_gauss_pairs import GaussPairs
 from data.multi_pairs.generate_multi_pairs import MultiPairs
+from data.net_pairs.generate_net_pairs import NetPairs
 from data.pairs.generate_pairs import TubingenPairs
 from data.sim_pairs.generate_sim_pairs import SimPairs
 import numpy as np
+
+
+def get_net_pairs_dataset(data_path):
+    data_gen = NetPairs(path=data_path)
+
+    x, y, weight, target = data_gen.return_pairs()
+    return x, y, weight, target
 
 
 def get_multi_pairs_dataset(data_path):

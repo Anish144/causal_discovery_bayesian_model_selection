@@ -1,3 +1,13 @@
+import gpflux
+import numpy as np
+import tensorflow_probability as tfp
+import gpflow
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from pathlib import Path
+from tqdm import tqdm
+
+
 def train_gpflux(
     x,
     y,
@@ -10,7 +20,6 @@ def train_gpflux(
 ):
     x = x.astype(np.float64)
     y = y.astype(np.float64)
-    import gpflux
     w_dim = 1
     prior_means = np.zeros(w_dim)
     prior_std = np.ones(w_dim)
@@ -93,5 +102,14 @@ def train_gpflux(
     )
     plt.close()
 
-
     return loss
+
+
+if __name__ == "__main__":
+    # Simple fitting example
+    import sys
+    sys.path.append("/vol/bitbucket/ad6013/Research/gp-causal")
+    from data.get_data import get_gauss_pairs_dataset
+    x, y, weight, target = get_gauss_pairs_dataset(
+        data_path='/vol/bitbucket/ad6013/Research/gp-causal/data/gauss_pairs/files'
+    )
