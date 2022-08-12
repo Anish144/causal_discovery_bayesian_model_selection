@@ -11,6 +11,7 @@ from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
+from tqdm import trange
 from typing import Optional
 import gpflow
 import matplotlib.pyplot as plt
@@ -18,6 +19,79 @@ import numpy as np
 import pickle
 import tensorflow as tf
 import tensorflow_probability as tfp
+
+
+def get_marginal_noise_model_score(
+    y: np.ndarray,
+    num_inducing: int
+):
+    # Need to find the ELBO for a noise model
+    linear_kernel = gpflow.kernels.Linear(variance=1)
+    kernel = linear_kernel
+
+    inducing_variable = gpflow.inducing_variables.InducingPoints(
+        np.random.randn(num_inducing, 1),
+    )
+    X_mean_init = 0.1 * tf.cast(y, default_float())
+    X_var_init = tf.cast(
+        np.random.uniform(0, 0.1, (y.shape[0], 1)), default_float()
+    )
+    x_prior_var = tf.ones((y.shape[0], 1), dtype=default_float())
+    inducing_variable = gpflow.inducing_variables.InducingPoints(
+        np.random.randn(num_inducing, 1),
+    )
+    # Define marginal model
+    marginal_model = BayesianGPLVM(
+        data=y,
+        kernel=kernel,
+        X_data_mean=X_mean_init,
+        X_data_var=X_var_init,
+        X_prior_var=x_prior_var,
+        jitter=1e-6,
+        inducing_variable=inducing_variable
+    )
+    marginal_model.likelihood.variance = Parameter(
+        1, transform=positive(1e-6)
+    )
+    # Train everything
+    opt = gpflow.optimizers.Scipy()
+    opt_logs = opt.minimize(
+        marginal_model.training_loss,
+        marginal_model.trainable_variables,
+        options=dict(maxiter=10000),
+    )
+    loss = - marginal_model.elbo()
+    return loss
+
+
+def get_conditional_noise_model_score(
+    x: np.ndarray,
+    y: np.ndarray,
+    num_inducing: int
+):
+    # Need to find the ELBO for a noise model
+    linear_kernel = gpflow.kernels.Linear(variance=1)
+    kernel = linear_kernel
+
+    Z = gpflow.inducing_variables.InducingPoints(
+            np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
+        )
+    inducing_variable = Z
+
+    reg_gp_model = gpflow.models.SGPR(
+        data=(x, y), kernel=kernel, inducing_variable=inducing_variable
+    )
+    reg_gp_model.likelihood.variance = Parameter(
+        1 + 1e-20, transform=positive(lower=1e-6)
+    )
+    opt = gpflow.optimizers.Scipy()
+    opt_logs = opt.minimize(
+        reg_gp_model.training_loss,
+        reg_gp_model.trainable_variables,
+        options=dict(maxiter=200000),
+    )
+    loss = - reg_gp_model.elbo()
+    return loss
 
 
 def train_marginal_model(
@@ -63,6 +137,26 @@ def train_marginal_model(
     marginal_model.likelihood.variance = Parameter(
         likelihood_variance, transform=positive(1e-6)
     )
+
+    # We will train the Adam until the elbo gets below the noise model score
+    noise_elbo = get_marginal_noise_model_score(
+        y=y,
+        num_inducing=num_inducing
+    )
+    loss_fn = marginal_model.training_loss_closure()
+    adam_vars = marginal_model.trainable_variables
+    adam_opt = tf.optimizers.Adam(0.05)
+    @tf.function
+    def optimisation_step():
+        adam_opt.minimize(loss_fn, adam_vars)
+    epochs = int(2e3)
+    with trange(1, epochs + 1) as pbar:
+        for epoch in pbar:
+            optimisation_step()
+            if - marginal_model.elbo() < noise_elbo:
+                print(f"Breaking as {- marginal_model.elbo()} is less than {noise_elbo}")
+                break
+
     # Train everything
     tf.print("Training everything")
     gpflow.utilities.set_trainable(marginal_model.kernel, True)
@@ -175,7 +269,7 @@ def train_conditional_model(
         # Put in new values of hyperparams
         X_mean_init = y - reg_gp_model.predict_y(x)[0]
         sq_exp = gpflow.kernels.SquaredExponential(
-            lengthscales=[found_lengthscale] + [found_lengthscale * 3]
+            lengthscales=[found_lengthscale] + [found_lengthscale / 3]
         )
         sq_exp.variance.assign(found_kern_var_0)
         linear_kernel = gpflow.kernels.Linear(variance=found_kern_var_1)
@@ -183,7 +277,7 @@ def train_conditional_model(
         # if not using a GP, put in initial values for hyperparams
         X_mean_init = 0.1 * tf.cast(y, default_float())
         sq_exp = gpflow.kernels.SquaredExponential(
-            lengthscales=[kernel_lengthscale] + [kernel_lengthscale * 3]
+            lengthscales=[kernel_lengthscale] + [kernel_lengthscale / 3]
         )
         sq_exp.variance.assign(kernel_variance + 1e-20)
         linear_kernel = gpflow.kernels.Linear(variance=kernel_variance + 1e-20)
@@ -224,7 +318,27 @@ def train_conditional_model(
             likelihood_variance, transform=positive(lower=1e-6)
         )
 
-    # Train everything
+    # We will train the Adam until the elbo gets below the noise model score
+    noise_elbo = get_conditional_noise_model_score(
+        x=x,
+        y=y,
+        num_inducing=num_inducing
+    )
+    loss_fn = conditional_model.training_loss_closure()
+    adam_vars = conditional_model.trainable_variables
+    adam_opt = tf.optimizers.Adam(0.05)
+    @tf.function
+    def optimisation_step():
+        adam_opt.minimize(loss_fn, adam_vars)
+    epochs = int(2e3)
+    with trange(1, epochs + 1) as pbar:
+        for epoch in pbar:
+            optimisation_step()
+            if - conditional_model.elbo() < noise_elbo:
+                print(f"Breaking as {- conditional_model.elbo()} is less than {noise_elbo}")
+                break
+
+    # Train everything after Adam
     tf.print("Training everything")
     gpflow.utilities.set_trainable(conditional_model.kernel, True)
     gpflow.utilities.set_trainable(conditional_model.likelihood, True)
