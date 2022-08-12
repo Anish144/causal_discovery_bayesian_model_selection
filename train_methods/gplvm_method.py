@@ -26,7 +26,7 @@ def get_marginal_noise_model_score(
     num_inducing: int
 ):
     # Need to find the ELBO for a noise model
-    linear_kernel = gpflow.kernels.Linear(variance=1)
+    linear_kernel = gpflow.kernels.Linear(variance=1e-20)
     kernel = linear_kernel
 
     inducing_variable = gpflow.inducing_variables.InducingPoints(
@@ -51,9 +51,14 @@ def get_marginal_noise_model_score(
         inducing_variable=inducing_variable
     )
     marginal_model.likelihood.variance = Parameter(
-        1, transform=positive(1e-6)
+        1.0, transform=positive(1e-6)
     )
     # Train everything
+    gpflow.utilities.set_trainable(marginal_model.kernel, True)
+    gpflow.utilities.set_trainable(marginal_model.likelihood, True)
+    gpflow.utilities.set_trainable(marginal_model.X_data_mean , True)
+    gpflow.utilities.set_trainable(marginal_model.X_data_var, True)
+    gpflow.utilities.set_trainable(marginal_model.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
         marginal_model.training_loss,
