@@ -10,7 +10,7 @@ TERM=vt100 # or TERM=xterm
     --data="cha_pairs" \
     --num_inducing=200 \
     --plot_fit \
-    --random_restarts=20 \
-    --method='gplvm' \
-    --data_start=0 \
-    --data_end=150 \
+    --random_restarts=2 \
+    --method='gplvm-adam' \
+    --data_start=180 \
+    --data_end=200 \

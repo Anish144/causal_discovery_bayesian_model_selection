@@ -74,7 +74,7 @@ def train_marginal_model(
 
     epochs = int(20e3)
     log_freq = 100
-    with trange(1, epochs + 1) as pbar:
+    with trange(1, epochs + 1, leave=True, position=0) as pbar:
         losses = []
         for epoch in pbar:
             optimisation_step()
@@ -198,7 +198,7 @@ def train_conditional_model(
 
     epochs = int(20e3)
     log_freq = 100
-    with trange(1, epochs + 1) as pbar:
+    with trange(1, epochs + 1, leave=True, position=0) as pbar:
         losses = []
         for epoch in pbar:
             optimisation_step()

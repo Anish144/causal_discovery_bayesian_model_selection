@@ -7,7 +7,15 @@ from data.multi_pairs.generate_multi_pairs import MultiPairs
 from data.net_pairs.generate_net_pairs import NetPairs
 from data.pairs.generate_pairs import TubingenPairs
 from data.sim_pairs.generate_sim_pairs import SimPairs
+from data.dream_pairs.generate_dream_pairs import DreamPairs
 import numpy as np
+
+
+def get_dream_pairs_dataset(name, data_path):
+    data_gen = DreamPairs(name=name, path=data_path)
+
+    x, y, weight, target = data_gen.return_pairs()
+    return x, y, weight, target
 
 
 def get_net_pairs_dataset(data_path):
