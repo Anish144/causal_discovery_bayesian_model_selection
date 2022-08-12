@@ -5,7 +5,7 @@ python3 train.py \
     --data="D4S1" \
     --num_inducing=200 \
     --plot_fit \
-    --random_restarts=1 \
+    --random_restarts=20 \
     --method="gplvm" \
     --data_start=0 \
-    --data_end=1 \
+    --data_end=100 \
