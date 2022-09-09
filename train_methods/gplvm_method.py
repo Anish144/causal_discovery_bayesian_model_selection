@@ -154,13 +154,12 @@ def train_marginal_model(
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
-    epochs = int(2e3)
-    with trange(1, epochs + 1) as pbar:
-        for epoch in pbar:
-            optimisation_step()
-            if - marginal_model.elbo() < noise_elbo:
-                print(f"Breaking as {- marginal_model.elbo()} is less than {noise_elbo}")
-                break
+    epochs = int(5e3)
+    for epoch in range(epochs):
+        optimisation_step()
+        if - marginal_model.elbo() < noise_elbo:
+            print(f"Breaking as {- marginal_model.elbo()} is less than {noise_elbo}")
+            break
 
     # Train everything
     tf.print("Training everything")
@@ -274,10 +273,10 @@ def train_conditional_model(
         # Put in new values of hyperparams
         X_mean_init = y - reg_gp_model.predict_y(x)[0]
         sq_exp = gpflow.kernels.SquaredExponential(
-            lengthscales=[found_lengthscale] + [found_lengthscale / 3]
+            lengthscales=[found_lengthscale + 1e-20] + [found_lengthscale / 3 + 1e-20]
         )
-        sq_exp.variance.assign(found_kern_var_0)
-        linear_kernel = gpflow.kernels.Linear(variance=found_kern_var_1)
+        sq_exp.variance.assign(found_kern_var_0 + 1e-20)
+        linear_kernel = gpflow.kernels.Linear(variance=found_kern_var_1 + 1e-20)
     else:
         # if not using a GP, put in initial values for hyperparams
         X_mean_init = 0.1 * tf.cast(y, default_float())
@@ -335,13 +334,12 @@ def train_conditional_model(
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
-    epochs = int(2e3)
-    with trange(1, epochs + 1) as pbar:
-        for epoch in pbar:
-            optimisation_step()
-            if - conditional_model.elbo() < noise_elbo:
-                print(f"Breaking as {- conditional_model.elbo()} is less than {noise_elbo}")
-                break
+    epochs = int(5e3)
+    for epoch in range(epochs):
+        optimisation_step()
+        if - conditional_model.elbo() < noise_elbo:
+            print(f"Breaking as {- conditional_model.elbo()} is less than {noise_elbo}")
+            break
 
     # Train everything after Adam
     tf.print("Training everything")
@@ -416,7 +414,7 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
     loss_x = None
     # Likelihood variance
     kappa = np.random.uniform(
-        low=1.0, high=100, size=[1]
+        low=10.0, high=100, size=[1]
     )
     likelihood_variance = 1. / (kappa ** 2)
     # Kernel lengthscale
@@ -454,7 +452,7 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
     kernel_variance = 1
     # Likelihood variance
     kappa = np.random.uniform(
-        low=1.0, high=100, size=[1]
+        low=10.0, high=100, size=[1]
     )
     likelihood_variance = 1. / (kappa ** 2)
     # Kernel lengthscale
@@ -531,7 +529,7 @@ def min_causal_score_gplvm(args, x, y, weight, target):
         rr_loss_y = []
         rr_loss_x_y = []
         for j in range(args.random_restarts):
-            seed = args.random_restarts * i + j
+            seed = args.random_restarts * i + j * 10
             np.random.seed(seed)
             tf.random.set_seed(seed)
             tf.print(f"\n Random restart: {j}")

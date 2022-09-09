@@ -9,7 +9,7 @@ source activate gp
 cd $PBS_O_WORKDIR
 
 python3 /rds/general/user/ad6013/home/Research/gp-causal/train.py \
-    --data="D4S2A" \
+    --data="D4S2C" \
     --num_inducing=200 \
     --random_restarts=20 \
     --work_dir="/rds/general/user/ad6013/home/Research/gp-causal" \

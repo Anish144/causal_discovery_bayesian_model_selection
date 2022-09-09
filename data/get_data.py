@@ -48,13 +48,13 @@ def get_cha_pairs_dataset(data_path):
 
 def get_tubingen_pairs_dataset(data_path):
     data_gen = TubingenPairs(path=data_path)
-
     x, y, weight = [], [], []
     for i in data_gen.pairs_generator():
         x.append(i[0])
         y.append(i[1])
         weight.append(i[2])
-    return x, y, weight
+    target = np.ones(len(x), dtype=np.float64)
+    return x, y, weight, target
 
 
 def get_simulated_pairs_dataset(data_path):

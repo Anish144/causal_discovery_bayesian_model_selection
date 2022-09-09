@@ -7,7 +7,9 @@ import argparse
 import numpy as np
 import os
 import tensorflow as tf
-
+# tf.config.threading.set_inter_op_parallelism_threads(2)
+# tf.config.threading.set_intra_op_parallelism_threads(2)
+# tf.config.set_soft_device_placement(enabled=True)
 
 methods = {
     "gplvm": min_causal_score_gplvm,
@@ -22,7 +24,7 @@ def main(args: argparse.Namespace):
 
     # Choose the dataset
     if args.data == "cep":
-        x, y, weight = get_tubingen_pairs_dataset(
+        x, y, weight, target = get_tubingen_pairs_dataset(
             data_path=f'{args.work_dir}/data/pairs/files'
         )
     elif args.data == "sim":
@@ -75,6 +77,9 @@ def main(args: argparse.Namespace):
 
 if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    if len(physical_devices) > 0:
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--work_dir', '-w', type=str, required=True,
