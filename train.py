@@ -3,6 +3,7 @@ from data.get_data import get_cha_pairs_dataset, get_gauss_pairs_dataset, get_mu
 from data.get_data import get_net_pairs_dataset, get_dream_pairs_dataset
 from train_methods.gplvm_method import min_causal_score_gplvm
 from train_methods.gplvm_adam_method import min_causal_score_gplvm_adam
+from train_methods.gpcde_quadrature import min_causal_score_gplvm_quadrature
 import argparse
 import numpy as np
 import os
@@ -13,7 +14,8 @@ import tensorflow as tf
 
 methods = {
     "gplvm": min_causal_score_gplvm,
-    "gplvm-adam": min_causal_score_gplvm_adam
+    "gplvm-adam": min_causal_score_gplvm_adam,
+    "gplvm-quad": min_causal_score_gplvm_quadrature,
 }
 
 
