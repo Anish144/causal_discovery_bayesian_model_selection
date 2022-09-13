@@ -3,9 +3,6 @@ This method will fit a gplvm for both the marginal and conditional models and
 choose the causal direction as the one with the minimum
 -log marginal likelihood.
 """
-from gpflow.base import Parameter
-from gpflow.config import default_float
-from gpflow.utilities import positive
 from models.GPDE import GPDE
 from models.GPCDE import GPCDE
 from pathlib import Path
@@ -18,7 +15,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 import tensorflow as tf
-import tensorflow_probability as tfp
 from gpflow.quadrature import NDiagGHQuadrature
 from tqdm import trange
 from gpflow.optimizers import NaturalGradient
@@ -53,10 +49,10 @@ def run_optimizer(model, ds_iter, iterations):
             logf.append(elbo)
             iterator.set_description(f"EPOCH: {step}, ELBO: {elbo}")
 
-            if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < np.std(logf[-100:]):
-                print("Breaking!")
-                break
-
+            if step > 2500:
+                if np.abs(np.mean(logf[-2500:])) - np.abs(np.mean(logf[-100:])) < np.std(logf[-100:]):
+                    print("Breaking!")
+                    break
     return logf
 
 
@@ -75,14 +71,13 @@ def train_marginal_model(
     plot_fit: Optional[bool] = False,
 ):
     # Define kernels
-    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale_1])
+    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=kernel_lengthscale_1)
     sq_exp.variance.assign(kernel_variance)
-    matern = gpflow.kernels.Matern32(lengthscales=[kernel_lengthscale_2])
+    matern = gpflow.kernels.Matern32(lengthscales=kernel_lengthscale_2)
     matern.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern])
-
-    Z = np.random.randn(num_inducing, 1),
+    Z = np.random.randn(num_inducing, 1)
 
     # Define marginal model
     marginal_model = GPDE(
@@ -94,7 +89,6 @@ def train_marginal_model(
         num_quadrature=100,
         whiten=True
     )
-
     ds_iter = marginal_model._init_quadrature(Y=y, num_minibatch=100)
     logf = run_optimizer(
         model=marginal_model,
@@ -105,7 +99,7 @@ def train_marginal_model(
     N = y.shape[0]
     marginal_model.num_minibatch = N
     num_quadrature = 100
-    def full_init_quadrature(self, Y, num_quadrature, num_minibatch = 100):
+    def full_init_quadrature(Y, num_quadrature, num_minibatch = 100):
         num_minibatch = num_minibatch
         quadrature = NDiagGHQuadrature(1, num_quadrature)
         quadrature_locs, quadrature_weights = quadrature._build_X_W(np.zeros(1), np.ones(1))
@@ -252,8 +246,6 @@ def train_conditional_model(
         plt.plot(obs_new, median, c='b', alpha=0.2)
         # plt.scatter(obs_new[:, 0], samples[0, 0], alpha=0.5)
         plt.fill_between(obs_new[:, 0], upper[:, 0], lower[:, 0], alpha=0.5)
-        plt.show()
-        plt.close()
 
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
         save_dir.mkdir(
@@ -275,7 +267,7 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
     num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
 
     # Sample hyperparams
-    kernel_variance = 1
+    kernel_variance = 1.0
     loss_x = None
     # Likelihood variance
     kappa = np.random.uniform(
@@ -305,7 +297,7 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
     )
 
     # Sample hyperparams
-    kernel_variance = 1
+    kernel_variance = 1.0
     # Likelihood variance
     kappa = np.random.uniform(
         low=10.0, high=100, size=[1]
