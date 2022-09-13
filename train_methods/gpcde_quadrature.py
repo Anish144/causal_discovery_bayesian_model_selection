@@ -22,7 +22,11 @@ import gpflow
 import matplotlib.pyplot as plt
 
 
-def run_optimizer(model, ds_iter, iterations):
+adam_learning_rates = [0.05, 0.01, 0.005, 0.001]
+natgrad_learning_rates = [0.1, 0.05]
+
+
+def run_optimizer(model, ds_iter, iterations, adam_lr, nat_lr):
     """
     Utility function running the Adam optimizer
     Modified from https://gpflow.readthedocs.io/en/master/notebooks/advanced/gps_for_big_data.html
@@ -35,8 +39,8 @@ def run_optimizer(model, ds_iter, iterations):
     gpflow.set_trainable(model.q_mu, False)
     gpflow.set_trainable(model.q_sqrt, False)
     variational_params = [(model.q_mu, model.q_sqrt)]
-    natgrad_opt = NaturalGradient(gamma=0.1)
-    optimizer = tf.optimizers.Adam(0.01)
+    natgrad_opt = NaturalGradient(gamma=nat_lr)
+    optimizer = tf.optimizers.Adam(adam_lr)
     @tf.function
     def optimization_step():
         optimizer.minimize(training_loss, model.trainable_variables)
@@ -49,8 +53,8 @@ def run_optimizer(model, ds_iter, iterations):
             logf.append(elbo)
             iterator.set_description(f"EPOCH: {step}, ELBO: {elbo}")
 
-            if step > 2500:
-                if np.abs(np.mean(logf[-2500:])) - np.abs(np.mean(logf[-100:])) < np.std(logf[-100:]):
+            if step > 5000:
+                if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < np.std(logf[-100:]):
                     print("Breaking!")
                     break
     return logf
@@ -65,6 +69,8 @@ def train_marginal_model(
     likelihood_variance: float,
     work_dir: str,
     save_name: str,
+    adam_lr: float,
+    nat_lr: float,
     causal: Optional[bool] = None,
     run_number: Optional[int] = None,
     random_restart_number: Optional[int] = None,
@@ -93,7 +99,9 @@ def train_marginal_model(
     logf = run_optimizer(
         model=marginal_model,
         ds_iter=ds_iter,
-        iterations=50000
+        iterations=50000,
+        adam_lr=adam_lr,
+        nat_lr=nat_lr
     )
 
     N = y.shape[0]
@@ -158,6 +166,8 @@ def train_conditional_model(
     likelihood_variance: float,
     work_dir: str,
     save_name: str,
+    adam_lr: float,
+    nat_lr: float,
     causal: Optional[bool] = None,
     run_number: Optional[int] = None,
     random_restart_number: Optional[int] = None,
@@ -199,7 +209,9 @@ def train_conditional_model(
     logf = run_optimizer(
         model=conditional_model,
         ds_iter=ds_iter,
-        iterations=50000
+        iterations=50000,
+        adam_lr=adam_lr,
+        nat_lr=nat_lr,
     )
 
     N = x.shape[0]
@@ -279,6 +291,8 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
         low=1, high=100, size=[2]
     )
     kernel_lengthscale = 1.0 / lamda
+    adam_lr = np.random.choice(adam_learning_rates)
+    nat_lr = np.random.choice(natgrad_learning_rates)
 
     tf.print("X" if causal else "Y")
     loss_x = train_marginal_model(
@@ -294,6 +308,8 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
         causal=causal,
         save_name=save_name,
         plot_fit=args.plot_fit,
+        adam_lr=adam_lr,
+        nat_lr=nat_lr,
     )
 
     # Sample hyperparams
@@ -308,6 +324,8 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
         low=1.0, high=100, size=[2]
     )
     kernel_lengthscale = 1.0 / lamda
+    adam_lr = np.random.choice(adam_learning_rates)
+    nat_lr = np.random.choice(natgrad_learning_rates)
 
     tf.print("Y|X" if causal else "X|Y")
     loss_y_x = train_conditional_model(
@@ -324,6 +342,8 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
         causal=causal,
         save_name=save_name,
         plot_fit=args.plot_fit,
+        adam_lr=adam_lr,
+        nat_lr=nat_lr,
     )
 
     return (loss_x, loss_y_x)
