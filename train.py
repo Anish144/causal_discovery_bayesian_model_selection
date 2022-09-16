@@ -4,6 +4,7 @@ from data.get_data import get_net_pairs_dataset, get_dream_pairs_dataset
 from train_methods.gplvm_method import min_causal_score_gplvm
 from train_methods.gplvm_adam_method import min_causal_score_gplvm_adam
 from train_methods.gpcde_quadrature import min_causal_score_gplvm_quadrature
+from train_methods.gplvm_generalised import min_causal_score_gplvm_generalised
 import argparse
 import numpy as np
 import os
@@ -16,6 +17,7 @@ methods = {
     "gplvm": min_causal_score_gplvm,
     "gplvm-adam": min_causal_score_gplvm_adam,
     "gplvm-quad": min_causal_score_gplvm_quadrature,
+    "gplvm-generalised": min_causal_score_gplvm_generalised,
 }
 
 
@@ -118,6 +120,14 @@ if __name__ == "__main__":
     parser.add_argument(
         '--data_end', '-de', type=int, default=1000,
         help="Data index to end the runs for."
+    )
+    parser.add_argument(
+        '--num_iterations', '-num_it', type=int, default=100000,
+        help="NUmber of maximum iterations."
+    )
+    parser.add_argument(
+        '--minibatch_size', '-mini_size', type=int, default=500,
+        help="Size of a minibatch."
     )
     args = parser.parse_args()
     main(args)
