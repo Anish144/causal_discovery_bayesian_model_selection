@@ -8,13 +8,16 @@ module load cudnn/8.2.4
 source activate gp
 cd $PBS_O_WORKDIR
 
-python3 /rds/general/user/ad6013/home/Research/gp-causal/train.py \
+timeout 23.8h python3 /rds/general/user/ad6013/home/Research/gp-causal/train.py \
     --data="gauss_pairs" \
     --num_inducing=200 \
-    --random_restarts=20 \
+    --random_restarts=5 \
     --work_dir="/rds/general/user/ad6013/home/Research/gp-causal" \
     --plot_fit \
-    --method="gplvm" \
+    --method="gplvm-generalised" \
     --data_start=$DS \
     --data_end=$DE \
+    --num_iterations=100000 \
+    --minibatch_size=500 \
 
+qsub -v "DS=$DS,DE=$DE" -oe -N "ce_gauss-DS-$DS-DE-$DE" hpc_runs/synthetic_ce_runs.pbs;
