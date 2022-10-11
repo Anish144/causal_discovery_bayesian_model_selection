@@ -549,8 +549,8 @@ def min_causal_score_gplvm(args, x, y, weight, target):
                 y_train = y[i][np.random.choice(len(y[i]), size=4000, replace=False)]
                 tf.print(f"SUBSAMPLING! {x[i].shape[0]}")
             else:
-                x_train = x[i][:10]
-                y_train = y[i][:10]
+                x_train = x[i]
+                y_train = y[i]
 
             # Normalise the data
             x_train = StandardScaler().fit_transform(x_train).astype(np.float64)
