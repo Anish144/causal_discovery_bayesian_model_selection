@@ -3,6 +3,7 @@ This method will fit a gplvm for both the marginal and conditional models and
 choose the causal direction as the one with the minimum
 -log marginal likelihood.
 """
+from optparse import check_choice
 from gpflow.base import Parameter
 from gpflow.config import default_float
 from gpflow.utilities import positive
@@ -16,9 +17,15 @@ from typing import Optional
 import gpflow
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
+import dill
 import tensorflow as tf
 import tensorflow_probability as tfp
+from collections import defaultdict
+from collections import namedtuple
+from utils import return_all_scores, return_best_causal_scores, get_correct
+
+
+GPLVM_SCORES = namedtuple('GPLVM_SCORES', 'loss_x loss_y_x loss_y loss_x_y')
 
 
 def get_marginal_noise_model_score(
@@ -498,41 +505,58 @@ def min_causal_score_gplvm(args, x, y, weight, target):
     save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}" \
                 f"_start:{data_start_idx}_end:{data_end_idx}"
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
+    starting_run_number = data_start_idx
 
     if save_path.is_file():
         with open(save_path, "rb") as f:
-            checkpoint = pickle.load(f)
+            checkpoint = dill.load(f)
         correct_idx = checkpoint['correct_idx']
         wrong_idx = checkpoint['wrong_idx']
-        scores = checkpoint["scores"]
-        starting_run_number = checkpoint["run_number"]
+        final_scores = checkpoint["final_scores"]
+        best_scores = checkpoint['best_scores']
     else:
         correct_idx = []
         wrong_idx = []
-        scores = []
-        starting_run_number = data_start_idx
+        best_scores = {}
+        # Final scores will be saved in a dictionary with the key being the run
+        # number that will point to a dictionary of random restarts
+        final_scores = defaultdict(dict)
 
-    for i in tqdm(range(starting_run_number, data_end_idx), desc="Epochs", leave=True, position=0):
-        # Find the target
-        run_target = target[i]
-        # Ignore the high dim
-        if x[i].shape[-1] > 1:
-            continue
-        tf.print(f'\n Run: {i}')
+    for j in tqdm(range(args.random_restarts), desc="RR", leave=True, position=0):
+        for i in tqdm(range(starting_run_number, data_end_idx), desc="Runs", leave=True, position=0):
+            # Check if this random restart already has been done for this run
+            # Skip if it has...
+            curr_run_rr_idx = list(final_scores[i].keys())
+            if j in curr_run_rr_idx:
+                continue
 
-        # Normalise the data
-        x_train = StandardScaler().fit_transform(x[i]).astype(np.float64)
-        y_train = StandardScaler().fit_transform(y[i]).astype(np.float64)
+            # Find the target
+            run_target = target[i]
 
-        rr_loss_x = []
-        rr_loss_y_x = []
-        rr_loss_y = []
-        rr_loss_x_y = []
-        for j in range(args.random_restarts):
-            seed = args.random_restarts * i + j * 10
+            # Ignore the high dim
+            if x[i].shape[-1] > 1:
+                continue
+            tf.print(f'\n Run: {i}')
+
+            # Set the seed
+            seed = args.random_restarts * i + j
             np.random.seed(seed)
             tf.random.set_seed(seed)
-            tf.print(f"\n Random restart: {j}")
+
+            # Subsample data
+            if x[i].shape[0] > 4000:
+                x_train = x[i][np.random.choice(len(x[i]), size=4000, replace=False)]
+                y_train = y[i][np.random.choice(len(y[i]), size=4000, replace=False)]
+                tf.print(f"SUBSAMPLING! {x[i].shape[0]}")
+            else:
+                x_train = x[i][:10]
+                y_train = y[i][:10]
+
+            # Normalise the data
+            x_train = StandardScaler().fit_transform(x_train).astype(np.float64)
+            y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
+
+            tf.print(f"\n Run: {i} \n Random restart: {j}")
             (
                 loss_x,
                 loss_y_x,
@@ -560,40 +584,38 @@ def min_causal_score_gplvm(args, x, y, weight, target):
                 save_name=save_name
             )
             if loss_x is not None:
-                rr_loss_x.append(loss_x)
-                rr_loss_y_x.append(loss_y_x)
-                rr_loss_y.append(loss_y)
-                rr_loss_x_y.append(loss_x_y)
-                tf.print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
-        # Need to find the best losses from the list
-        # Calculate losses
-        if args.debug:
-            print(
-                f"x: {rr_loss_x} \n y_x: {rr_loss_y_x} \n y: {rr_loss_y} \n x_y: {rr_loss_x_y}"
-            )
-        score_x_y = min(rr_loss_x) + min(rr_loss_y_x)
-        score_y_x = min(rr_loss_y) + min(rr_loss_x_y)
-        tf.print(f"Run {i}: {score_x_y} ; {score_y_x}")
-        if score_x_y < score_y_x:
-            # If target is -1 this is wrong
-            if run_target < 0:
-                wrong_idx.append(i)
-            else:
-                correct_idx.append(i)
-        else:
-            if run_target < 0:
-                correct_idx.append(i)
-            else:
-                wrong_idx.append(i)
-        scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
-        tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
-        # Save checkpoint
-        with open(save_path, 'wb') as f:
-            save_dict = {
-                "correct_idx": correct_idx,
-                "wrong_idx": wrong_idx,
-                "weight": weight,
-                "scores": scores,
-                "run_number": i + 1
-            }
-            pickle.dump(save_dict, f)
+                this_run_score = GPLVM_SCORES(loss_x, loss_y_x, loss_y, loss_x_y)
+                final_scores[i].update({j: this_run_score})
+                tf.print(
+                    loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy()
+                )
+                with open(save_path, 'wb') as f:
+                    save_dict = {
+                        "correct_idx": correct_idx,
+                        "wrong_idx": wrong_idx,
+                        "weight": weight,
+                        "final_scores": final_scores,
+                        "best_scores": best_scores,
+                    }
+                    dill.dump(save_dict, f)
+    # Can find the best score once the random restarts are finished
+    all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y = return_all_scores(
+        final_scores
+    )
+    best_scores = return_best_causal_scores(
+       all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y
+    )
+
+    correct_idx, wrong_idx = get_correct(best_scores, target)
+
+    tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
+    # Save checkpoint
+    with open(save_path, 'wb') as f:
+        save_dict = {
+            "correct_idx": correct_idx,
+            "wrong_idx": wrong_idx,
+            "weight": weight,
+            "final_scores": final_scores,
+            "best_scores": best_scores,
+        }
+        dill.dump(save_dict, f)

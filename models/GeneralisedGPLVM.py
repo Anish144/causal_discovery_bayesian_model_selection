@@ -23,8 +23,6 @@ from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
 from functools import partial
 from gpflow.conditionals.util import sample_mvn
 
-from ops import cholesky
-
 
 def batch_kernel_evaluation(X, kernel):
     return kernel(X[0], X[1])
@@ -225,43 +223,73 @@ class GeneralisedGPLVM(SVGP):
         (
             new_mean,
             new_variance,
-            batch_X_means,
-            batch_X_vars
+            x_data_mean,
+            x_data_var
         ) = self.get_new_mean_vars(X_data, data_idx)
-
         # We integrate out the latent variable by taking J MC samples
         # [num_mc, num_batch, num_dim]
         X_samples = tfp.distributions.MultivariateNormalDiag(
             loc=new_mean,
             scale_diag=new_variance,
         ).sample(self.num_mc_samples)
+        X_samples = tf.reshape(
+            X_samples,
+            [-1, new_mean.shape[1]]
+        )
 
-        # # KL[q(x) || p(x)]
+        # KL[q(x) || p(x)]
         batch_prior_means = tf.gather(
             self.X_prior_mean, data_idx
         )
         batch_prior_vars = tf.gather(
             self.X_prior_var, data_idx
         )
+        # batch_prior_means = self.X_prior_mean
+        # batch_prior_vars = self.X_prior_var
         dX_data_var = (
-            batch_X_vars
-            if batch_X_vars.shape.ndims == 2
-            else tf.linalg.diag_part(batch_X_vars)
+            x_data_var
+            if x_data_var.shape.ndims == 2
+            else tf.linalg.diag_part(x_data_var)
         )
-        NQ = to_default_float(tf.size(batch_X_means))
+        NQ = to_default_float(tf.size(x_data_mean))
         D = to_default_float(tf.shape(Y_data)[1])
         KL = -0.5 * tf.reduce_sum(tf.math.log(dX_data_var + 1e-30))
         KL += 0.5 * tf.reduce_sum(tf.math.log(batch_prior_vars + 1e-30))
         KL -= 0.5 * NQ
         KL += 0.5 * tf.reduce_sum(
-            (tf.square(batch_X_means - batch_prior_means) + dX_data_var) / batch_prior_vars
+            (tf.square(x_data_mean - batch_prior_means) + dX_data_var) / batch_prior_vars
         )
 
         KL_2 = self.prior_kl()
-        f_mean, f_var = self.predict_f(X_samples, full_cov=False, full_output_cov=False)
-        var_exp = self.likelihood.variational_expectations(f_mean, f_var, Y_data)
+
+        # def predict_f_single_sample(X_new):
+        #     f_mean, f_var = self.predict_f(X_new, full_cov=False, full_output_cov=False)
+        #     var_exp = self.likelihood.variational_expectations(f_mean, f_var, Y_data)
+        #     return var_exp
+
+        # var_exp_tensor = tf.vectorized_map(
+        #     predict_f_single_sample, X_samples
+        # )
+        # var_exp_tensor = var_exp_MC.gather(np.arange(self.num_mc_samples))
         # MC over 1st dim
-        var_exp = tf.reduce_mean(var_exp, axis=0)
+        # import pdb; pdb.set_trace()
+        f_mean, f_var = self.predict_f(X_samples, full_cov=False, full_output_cov=False)
+        f_mean = tf.reshape(
+            f_mean,
+            [self.num_mc_samples, -1, self.num_latent_gps]
+        )
+        f_var = tf.reshape(
+            f_var,
+            [self.num_mc_samples, -1, self.num_latent_gps]
+        )
+        var_exp_tensor = self.likelihood.variational_expectations(f_mean, f_var, Y_data)
+        # var_exp = tf.reduce_mean(var_exp_tensor, axis=0)
+        # var_exp_reshape = tf.reshape(
+        #     var_exp_tensor,
+        #     [self.num_mc_samples, -1, new_mean.shape[1]]
+        # )
+        var_exp = tf.reduce_mean(var_exp_tensor, axis=0)
+
         if self.num_data is not None:
             num_data = tf.cast(self.num_data, KL_2.dtype)
             minibatch_size = tf.cast(tf.shape(X_data)[0], KL_2.dtype)

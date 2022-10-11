@@ -1,6 +1,7 @@
 from data.get_data import get_tubingen_pairs_dataset, get_synthetic_dataset, get_simulated_pairs_dataset
 from data.get_data import get_cha_pairs_dataset, get_gauss_pairs_dataset, get_multi_pairs_dataset
 from data.get_data import get_net_pairs_dataset, get_dream_pairs_dataset
+from data.get_data import get_gplvm_pairs_dataset
 from train_methods.gplvm_method import min_causal_score_gplvm
 from train_methods.gplvm_adam_method import min_causal_score_gplvm_adam
 from train_methods.gpcde_quadrature import min_causal_score_gplvm_quadrature
@@ -58,6 +59,10 @@ def main(args: argparse.Namespace):
     elif args.data in ["D4S1", "D4S2A", "D4S2B", "D4S2C"]:
         x, y, weight, target = get_dream_pairs_dataset(
             name=args.data, data_path=f'{args.work_dir}/data/dream_pairs/files'
+        )
+    elif args.data == "gplvm_pairs":
+        x, y, weight, target = get_gplvm_pairs_dataset(
+            data_path=f'{args.work_dir}/data/gplvm_pairs/files'
         )
     else:
         func_type, noise = args.data.split("-")
