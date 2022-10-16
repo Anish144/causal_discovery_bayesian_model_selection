@@ -13,6 +13,13 @@ The dataset weight should be used for calculating average performance of causal 
 to avoid a bias introduced by having multiple copies of essentially the same data (for example,
 the pairs 56-63).
 
+When you use this data set in a publication, please cite the following paper (which
+also contains much more detailed information regarding this data set in the supplement):
+
+J. M. Mooij, J. Peters, D. Janzing, J. Zscheischler, B. Schoelkopf
+"Distinguishing cause from effect using observational data: methods and benchmarks"
+Journal of Machine Learning Research 17(32):1-102, 2016
+
 NOTE: pair0001 - pair0041 are taken from the UCI Machine Learning Repository:
 
 Asuncion, A. & Newman, D.J. (2007). UCI Machine Learning Repository [http://www.ics.uci.edu/~mlearn/MLRepository.html]. Irvine, CA: University of California, School of Information and Computer Science. 
@@ -166,3 +173,19 @@ pair0099		language test score		social-economic status family		"nlschools" datase
 
 pair0100		cycle time of CPU		performance				"cpus" dataset of R MASS package		->
 
+pair0101                grey value of a pixel           brightness of the screen                D. Janzing                                      ->      
+
+pair0102                position of a ball              time for passing a track segment        D. Janzing                                      ->
+
+pair0103                position of a ball              time for passing a track segment        D. Janzing                                      ->
+ 
+pair0104                time for passing 1. segment     time for passing 2. segment             D. Janzing                                      -> 
+
+pair0105                pixel vector of a patch         total brightness at the screen          D. Janzing                                      -> 
+    
+pair0106                time required for one round     voltage                                 D. Janzing                                      <-   
+
+pair0107                strength of contrast            answer correct or not                   Schuett, edited by D. Janzing                   ->    
+
+pair0108                time for 1/6 rotation           temperature                             D. Janzing                                      <- 
+ 
