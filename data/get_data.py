@@ -9,7 +9,15 @@ from data.pairs.generate_pairs import TubingenPairs
 from data.sim_pairs.generate_sim_pairs import SimPairs
 from data.dream_pairs.generate_dream_pairs import DreamPairs
 from data.gplvm_pairs.generate_gplvm_pairs import GPLVMPairs
+from data.linear_pairs.generate_linear_pairs import LinearPairs
 import numpy as np
+
+
+def get_linear_pairs_dataset(data_path):
+    data_gen = LinearPairs(path=data_path)
+
+    x, y, weight, target = data_gen.return_pairs()
+    return x, y, weight, target
 
 
 def get_gplvm_pairs_dataset(data_path):
