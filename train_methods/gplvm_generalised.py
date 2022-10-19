@@ -21,9 +21,16 @@ from gpflow.optimizers import NaturalGradient
 import gpflow
 import matplotlib.pyplot as plt
 from gpflow.config import default_float
+import dill
+from collections import defaultdict
+from collections import namedtuple
+from utils import return_all_scores, return_best_causal_scores, get_correct
 
 
-adam_learning_rates = [0.05, 0.01, 0.005, 0.001]
+adam_learning_rates = [0.05, 0.01]
+
+
+GPLVM_SCORES = namedtuple('GPLVM_SCORES', 'loss_x loss_y_x loss_y loss_x_y')
 
 
 def run_optimizer(model, train_dataset, iterations, data_size, minibatch_size, adam_lr):
@@ -63,6 +70,7 @@ def train_marginal_model(
     kernel_variance: float,
     kernel_lengthscale_1: float,
     kernel_lengthscale_2: float,
+    kernel_lengthscale_3: float,
     likelihood_variance: float,
     num_minibatch: int,
     num_iterations: int,
@@ -79,8 +87,10 @@ def train_marginal_model(
     sq_exp.variance.assign(kernel_variance)
     matern = gpflow.kernels.Matern32(lengthscales=kernel_lengthscale_2)
     matern.variance.assign(kernel_variance)
+    rquadratic = gpflow.kernels.RationalQuadratic(lengthscales=kernel_lengthscale_3)
+    rquadratic.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
-    kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern])
+    kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern, rquadratic])
     Z = np.random.randn(num_inducing, 1)
 
     # Define the approx posteroir
@@ -111,7 +121,7 @@ def train_marginal_model(
         minibatch_size=num_minibatch,
     )
 
-    marginal_model.num_mc_samples = 200
+    marginal_model.num_mc_samples = 100
     full_elbo = marginal_model.elbo((y, data_idx))
     print(f"Full Loss: {- full_elbo}")
 
@@ -154,6 +164,7 @@ def train_conditional_model(
     kernel_variance: float,
     kernel_lengthscale_1: float,
     kernel_lengthscale_2: float,
+    kernel_lengthscale_3: float,
     likelihood_variance: float,
     num_minibatch: int,
     num_iterations: int,
@@ -177,8 +188,12 @@ def train_conditional_model(
         lengthscales=[kernel_lengthscale_2, kernel_lengthscale_2 * 0.3]
     )
     matern.variance.assign(kernel_variance)
+    rquadratic = gpflow.kernels.RationalQuadratic(
+        lengthscales=[kernel_lengthscale_3, kernel_lengthscale_3 * 0.3]
+    )
+    rquadratic.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
-    kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern])
+    kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern, rquadratic])
 
     Z = np.concatenate(
             [
@@ -217,7 +232,7 @@ def train_conditional_model(
         minibatch_size=num_minibatch,
     )
 
-    conditional_model.num_mc_samples = 200
+    conditional_model.num_mc_samples = 100
     full_elbo = conditional_model.elbo((x, y, data_idx))
     print(f"Full Loss: {- full_elbo}")
 
@@ -259,6 +274,8 @@ def train_conditional_model(
 
 def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causal, save_name):
     num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    # Set number of iterations
+    num_iterations = int(x.shape[0] / args.minibatch_size * 6666.67 * 2)
 
     # Sample hyperparams
     kernel_variance = 1.0
@@ -270,7 +287,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
     likelihood_variance = 1. / (kappa ** 2)
     # Kernel lengthscale
     lamda = np.random.uniform(
-        low=1, high=100, size=[2]
+        low=1, high=100, size=[3]
     )
     kernel_lengthscale = 1.0 / lamda
     adam_lr = np.random.choice(adam_learning_rates)
@@ -282,6 +299,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
         kernel_variance=kernel_variance,
         kernel_lengthscale_1=kernel_lengthscale[0],
         kernel_lengthscale_2=kernel_lengthscale[1],
+        kernel_lengthscale_3=kernel_lengthscale[2],
         likelihood_variance=likelihood_variance[0],
         num_minibatch=args.minibatch_size,
         work_dir=args.work_dir,
@@ -291,7 +309,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
         save_name=save_name,
         plot_fit=args.plot_fit,
         adam_lr=adam_lr,
-        num_iterations=args.num_iterations,
+        num_iterations=num_iterations,
     )
 
     # Sample hyperparams
@@ -303,7 +321,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
     likelihood_variance = 1. / (kappa ** 2)
     # Kernel lengthscale
     lamda = np.random.uniform(
-        low=1.0, high=100, size=[2]
+        low=1.0, high=100, size=[3]
     )
     kernel_lengthscale = 1.0 / lamda
     adam_lr = np.random.choice(adam_learning_rates)
@@ -316,6 +334,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
         kernel_variance=kernel_variance,
         kernel_lengthscale_1=kernel_lengthscale[0],
         kernel_lengthscale_2=kernel_lengthscale[1],
+        kernel_lengthscale_3=kernel_lengthscale[2],
         likelihood_variance=likelihood_variance[0],
         num_minibatch=args.minibatch_size,
         work_dir=args.work_dir,
@@ -325,7 +344,7 @@ def causal_score_gplvm_generalised(args, x, y, run_number, restart_number, causa
         save_name=save_name,
         plot_fit=args.plot_fit,
         adam_lr=adam_lr,
-        num_iterations=args.num_iterations,
+        num_iterations=num_iterations,
     )
 
     return (loss_x, loss_y_x)
@@ -336,44 +355,49 @@ def min_causal_score_gplvm_generalised(args, x, y, weight, target):
     # Find data index to start and end the runs on
     data_start_idx = args.data_start
     data_end_idx = args.data_end if args.data_end < len(x) else len(x)
-    save_name = f"fullscore-{args.data}-gplvmGeneralised-reinit{args.random_restarts}-numind{args.num_inducing}" \
+    save_name = f"fullscore-{args.data}-gplvmgeneralised-reinit{args.random_restarts}-numind{args.num_inducing}" \
                 f"_start:{data_start_idx}_end:{data_end_idx}"
     save_path = Path(f'{args.work_dir}/results/{save_name}.p')
+    starting_run_number = data_start_idx
 
     if save_path.is_file():
         with open(save_path, "rb") as f:
-            checkpoint = pickle.load(f)
+            checkpoint = dill.load(f)
         correct_idx = checkpoint['correct_idx']
         wrong_idx = checkpoint['wrong_idx']
-        scores = checkpoint["scores"]
-        starting_run_number = checkpoint["run_number"]
+        final_scores = checkpoint["final_scores"]
+        best_scores = checkpoint['best_scores']
     else:
         correct_idx = []
         wrong_idx = []
-        scores = []
-        starting_run_number = data_start_idx
+        best_scores = {}
+        # Final scores will be saved in a dictionary with the key being the run
+        # number that will point to a dictionary of random restarts
+        final_scores = defaultdict(dict)
 
-    for i in tqdm(range(starting_run_number, data_end_idx), desc="Epochs", leave=True, position=0):
-        # Find the target
-        run_target = target[i]
-        # Ignore the high dim
-        if x[i].shape[-1] > 1:
-            continue
-        tf.print(f'\n Run: {i}')
+    for j in tqdm(range(args.random_restarts), desc="RR", leave=True, position=0):
+        for i in tqdm(range(starting_run_number, data_end_idx), desc="Runs", leave=True, position=0):
+            # Check if this random restart already has been done for this run
+            # Skip if it has...
+            curr_run_rr_idx = list(final_scores[i].keys())
+            if j in curr_run_rr_idx:
+                continue
 
-        # Normalise the data
-        x_train = StandardScaler().fit_transform(x[i]).astype(np.float64)
-        y_train = StandardScaler().fit_transform(y[i]).astype(np.float64)
+            # Ignore the high dim
+            if x[i].shape[-1] > 1:
+                continue
+            tf.print(f'\n Run: {i}')
 
-        rr_loss_x = []
-        rr_loss_y_x = []
-        rr_loss_y = []
-        rr_loss_x_y = []
-        for j in range(args.random_restarts):
+            # Set the seed
             seed = args.random_restarts * i + j
             np.random.seed(seed)
             tf.random.set_seed(seed)
-            tf.print(f"\n Random restart: {j}")
+
+            # Normalise the data
+            x_train = StandardScaler().fit_transform(x[i]).astype(np.float64)
+            y_train = StandardScaler().fit_transform(y[i]).astype(np.float64)
+
+            tf.print(f"\n Run: {i} \n Random restart: {j}")
             (
                 loss_x,
                 loss_y_x,
@@ -401,40 +425,38 @@ def min_causal_score_gplvm_generalised(args, x, y, weight, target):
                 save_name=save_name
             )
             if loss_x is not None:
-                rr_loss_x.append(loss_x)
-                rr_loss_y_x.append(loss_y_x)
-                rr_loss_y.append(loss_y)
-                rr_loss_x_y.append(loss_x_y)
-                tf.print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
-        # Need to find the best losses from the list
-        # Calculate losses
-        if args.debug:
-            print(
-                f"x: {rr_loss_x} \n y_x: {rr_loss_y_x} \n y: {rr_loss_y} \n x_y: {rr_loss_x_y}"
-            )
-        score_x_y = min(rr_loss_x) + min(rr_loss_y_x)
-        score_y_x = min(rr_loss_y) + min(rr_loss_x_y)
-        tf.print(f"Run {i}: {score_x_y} ; {score_y_x}")
-        if score_x_y < score_y_x:
-            # If target is -1 this is wrong
-            if run_target < 0:
-                wrong_idx.append(i)
-            else:
-                correct_idx.append(i)
-        else:
-            if run_target < 0:
-                correct_idx.append(i)
-            else:
-                wrong_idx.append(i)
-        scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
-        tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
-        # Save checkpoint
-        with open(save_path, 'wb') as f:
-            save_dict = {
-                "correct_idx": correct_idx,
-                "wrong_idx": wrong_idx,
-                "weight": weight,
-                "scores": scores,
-                "run_number": i + 1
-            }
-            pickle.dump(save_dict, f)
+                this_run_score = GPLVM_SCORES(loss_x, loss_y_x, loss_y, loss_x_y)
+                final_scores[i].update({j: this_run_score})
+                tf.print(
+                    loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy()
+                )
+                with open(save_path, 'wb') as f:
+                    save_dict = {
+                        "correct_idx": correct_idx,
+                        "wrong_idx": wrong_idx,
+                        "weight": weight,
+                        "final_scores": final_scores,
+                        "best_scores": best_scores,
+                    }
+                    dill.dump(save_dict, f)
+    # Can find the best score once the random restarts are finished
+    all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y = return_all_scores(
+        final_scores
+    )
+    best_scores = return_best_causal_scores(
+       all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y
+    )
+
+    correct_idx, wrong_idx = get_correct(best_scores, target)
+
+    tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
+    # Save checkpoint
+    with open(save_path, 'wb') as f:
+        save_dict = {
+            "correct_idx": correct_idx,
+            "wrong_idx": wrong_idx,
+            "weight": weight,
+            "final_scores": final_scores,
+            "best_scores": best_scores,
+        }
+        dill.dump(save_dict, f)

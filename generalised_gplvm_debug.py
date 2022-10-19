@@ -26,6 +26,8 @@ def run_optimizer(model, train_dataset, iterations, minibatch_size):
     logf = []
     train_iter = iter(train_dataset.batch(minibatch_size))
     training_loss = model.training_loss_closure(train_iter, compile=True)
+    # gpflow.set_trainable(model.q_mu, True)
+    # gpflow.set_trainable(model.q_sqrt, True)
     # gpflow.set_trainable(model.X_data_mean, False)
     # gpflow.set_trainable(model.X_data_var, False)
     # variational_params = [(model.q_mu, model.q_sqrt)]
@@ -38,7 +40,6 @@ def run_optimizer(model, train_dataset, iterations, minibatch_size):
     iterator = trange(iterations, leave=True)
     for step in iterator:
         optimization_step()
-        # logf.append(neg_elbo)
         if step % 4999 == 0:
             neg_elbo = training_loss().numpy()
             iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
@@ -87,7 +88,7 @@ def run_model(X, Y, num_minibatch, num_iterations, num_mc):
     M = 200  # Number of inducing locations
 
     kernel_1 = gpflow.kernels.SquaredExponential(
-        lengthscales=[0.1, 0.001]
+        lengthscales=[0.1, 0.1]
     )
     kernel_1.variance.assign(1.0)
     kernel_2 = gpflow.kernels.Linear(variance=1.0)
@@ -116,7 +117,42 @@ def run_model(X, Y, num_minibatch, num_iterations, num_mc):
         batch_size=num_minibatch,
     )
     data_idx = np.arange(X.shape[0])
-    train_dataset = tf.data.Dataset.from_tensor_slices((X, Y, data_idx)).repeat().shuffle(X.shape[0])
+    loss = - model.elbo((X, Y, data_idx))
+    from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
+
+    X_mean_init = model.X_data_mean.numpy()
+    X_var_init = model.X_data_var.numpy()
+
+    # Z = np.concatenate(
+    #         [
+    #             model.inducing_variable.Z,
+    #             # np.linspace(X.min(), X.max(), M).reshape(-1, 1),
+    #             np.random.randn(M, 1),
+    #         ],
+    #         axis=1
+    #     )
+
+    Z = model.inducing_variable
+    kernel = model.kernel
+
+    likelihood = model.likelihood
+
+    model_bayes = PartObsBayesianGPLVM(
+        data=Y,
+        in_data=X,
+        kernel=kernel,
+        X_data_mean=X_mean_init,
+        X_data_var=X_var_init,
+        inducing_variable=Z,
+        jitter=1e-20,
+    )
+    model_bayes.likelihood.variance.assign(likelihood.variance)
+    bayes_gplvm_loss = (- model_bayes.elbo())
+    tf.print(f"Gen loss: {loss.numpy()}, Bayes loss: {bayes_gplvm_loss.numpy()}")
+
+
+    data_idx = np.arange(X.shape[0])
+    train_dataset = tf.data.Dataset.from_tensor_slices((X, Y, data_idx)).repeat().shuffle(N)
     logf = run_optimizer(
         model=model,
         train_dataset=train_dataset,
@@ -145,9 +181,41 @@ def run_model(X, Y, num_minibatch, num_iterations, num_mc):
     textstr = f"NEG_ELBO:{loss:.2f}"
     plt.text(X.min() - 5, 1, textstr, fontsize=8)
     plt.subplots_adjust(left=0.25)
-    plt.savefig(f"Test_minibatch_{num_minibatch}_numit_{num_iterations}_nummc_{num_mc}")
+    plt.savefig(f"Test_sampling_minibatch_{num_minibatch}_numit_{num_iterations}_nummc_{num_mc}")
     plt.close()
 
+    from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
+
+    X_mean_init = model.X_data_mean.numpy()
+    X_var_init = model.X_data_var.numpy()
+
+    # Z = np.concatenate(
+    #         [
+    #             model.inducing_variable.Z,
+    #             # np.linspace(X.min(), X.max(), M).reshape(-1, 1),
+    #             np.random.randn(M, 1),
+    #         ],
+    #         axis=1
+    #     )
+
+    Z = model.inducing_variable
+    kernel = model.kernel
+
+    likelihood = model.likelihood
+
+    model_bayes = PartObsBayesianGPLVM(
+        data=Y,
+        in_data=X,
+        kernel=kernel,
+        X_data_mean=X_mean_init,
+        X_data_var=X_var_init,
+        inducing_variable=Z,
+        jitter=1e-6,
+    )
+    model_bayes.likelihood.variance.assign(likelihood.variance)
+    bayes_gplvm_loss = (- model_bayes.elbo())
+    tf.print(f"Gen loss: {loss.numpy()}, Bayes loss: {bayes_gplvm_loss.numpy()}")
+    # import pdb; pdb.set_trace()
 
 if __name__ == "__main__":
     # tf.config.run_functions_eagerly(
@@ -163,12 +231,12 @@ if __name__ == "__main__":
     X = y[180]
     Y = x[180]
     N = X.shape[0]
-    num_minibatch = 200
+    num_minibatch = 100
     num_iterations = 100000
-    num_mc = 10
+    num_mc = [1]
     print(f"\n Nummin: {num_minibatch}, Numit: {num_iterations} \n ")
 
     X = StandardScaler().fit_transform(X).astype(np.float64)
     Y = StandardScaler().fit_transform(Y).astype(np.float64)
-    for i in [1, 5, 10, 20, 50, 100, 200, 250, 300, 350, 400, 450, 500]:
+    for i in num_mc:
         run_model(X, Y, num_minibatch, num_iterations, i)
