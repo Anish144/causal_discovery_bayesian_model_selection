@@ -54,10 +54,10 @@ def return_best_causal_scores(
     best_scores = {}
 
     for run_idx in all_runs:
-        best_x = min(all_loss_x[run_idx])
-        best_y_x = min(all_loss_y_x[run_idx])
-        best_y = min(all_loss_y[run_idx])
-        best_x_y = min(all_loss_x_y[run_idx])
+        best_x = np.nanmin(all_loss_x[run_idx])
+        best_y_x = np.nanmin(all_loss_y_x[run_idx])
+        best_y = np.nanmin(all_loss_y[run_idx])
+        best_x_y = np.nanmin(all_loss_x_y[run_idx])
 
         best_causal_score = BEST_SCORES(
             best_x, best_y_x, best_y, best_x_y

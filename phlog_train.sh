@@ -7,5 +7,5 @@ python3 train.py \
     --plot_fit \
     --random_restarts=1 \
     --method="gplvm-generalised" \
-    --data_start=0 \
-    --data_end=1 \
+    --data_start=1 \
+    --data_end=2 \

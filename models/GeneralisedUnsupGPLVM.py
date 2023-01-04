@@ -272,3 +272,25 @@ class GeneralisedUnsupGPLVM(SVGP):
         else:
             scale = tf.cast(1.0, KL_2.dtype)
         return (tf.reduce_sum(var_exp) - KL) * scale - KL_2
+
+    def predictive_score(self, data):
+        Y_data, data_idx = data
+        (
+            new_mean,
+            new_variance,
+            batch_X_means,
+            batch_X_vars
+        ) = self.get_new_mean_vars(data_idx)
+
+        samples = self.predict_full_samples_layer(
+            sample_size=Y_data.shape[0], obs_noise=True
+        )
+        normal_dist = tfp.distributions.Normal(
+            loc=samples,
+            scale=self.likelihood.variance ** 0.5
+        )
+        prob_samples = normal_dist.prob(Y_data)
+        mc_samples = tf.math.log(
+            tf.reduce_mean(prob_samples, axis=[0, 1])
+        )
+        return tf.reduce_sum(mc_samples)

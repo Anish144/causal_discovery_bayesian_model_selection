@@ -26,7 +26,6 @@ from collections import defaultdict
 from collections import namedtuple
 from utils import return_all_scores, return_best_causal_scores, get_correct
 
-
 adam_learning_rates = [0.05, 0.01]
 
 
@@ -48,14 +47,14 @@ def run_optimizer(model, train_dataset, iterations, data_size, minibatch_size, a
     @tf.function
     def optimization_step():
         optimizer.minimize(training_loss, model.trainable_variables)
-    iterator = trange(iterations, leave=True)
+    iterator = range(iterations)
     for step in iterator:
         optimization_step()
         neg_elbo = training_loss().numpy()
         logf.append(neg_elbo)
         if step % 5000 == 0:
 
-            iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
+            # iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
 
             if step / float(data_size / minibatch_size) > 10000:
                 if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < 0.2 * np.std(logf[-100:]):

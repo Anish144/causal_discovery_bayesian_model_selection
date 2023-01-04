@@ -279,3 +279,21 @@ class GeneralisedGPLVM(SVGP):
         else:
             scale = tf.cast(1.0, KL_2.dtype)
         return (tf.reduce_sum(var_exp) - KL) * scale - KL_2
+
+    def predictive_score(self, data):
+        """
+        Just return the predictive part of the loss.
+        """
+        X_data, Y_data, data_idx = data
+        samples = self.predict_full_samples_layer(
+            X_data, obs_noise=False
+        )
+        normal_dist = tfp.distributions.Normal(
+            loc=samples,
+            scale=self.likelihood.variance ** 0.5
+        )
+        prob_samples = normal_dist.prob(Y_data)
+        mc_samples = tf.math.log(
+            tf.reduce_mean(prob_samples, axis=[0, 1])
+        )
+        return tf.reduce_sum(mc_samples)
