@@ -10,9 +10,7 @@ import argparse
 import numpy as np
 import os
 import tensorflow as tf
-# tf.config.threading.set_inter_op_parallelism_threads(2)
-# tf.config.threading.set_intra_op_parallelism_threads(2)
-# tf.config.set_soft_device_placement(enabled=True)
+
 
 methods = {
     "gplvm": min_causal_score_gplvm,

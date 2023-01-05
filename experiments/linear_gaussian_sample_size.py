@@ -5,20 +5,17 @@ There will be two modes:
     - Optimising the hyperparams
     - Not optimising the hyperparams
 """
-from audioop import mul
-from collections import namedtuple
-from gettext import translation
 from pathlib import Path
-from gpflow.utilities import positive
-from gpflow.base import Parameter
-from sklearn.preprocessing import StandardScaler
-from tqdm import trange
-import dill
-import gpflow
+from collections import namedtuple
 import math
+import gpflow
+import dill
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from gpflow.utilities import positive
+from gpflow.base import Parameter
+from tqdm import trange
 tfd = tfp.distributions
 
 
@@ -41,7 +38,6 @@ class BayesianNormalDE(tf.Module):
         self.b_0 = Parameter([b_0_initial], dtype=tf.float64, transform=positive())
         self.mu_0 = Parameter(mu_0_initial, dtype=tf.float64)
         self.lambda_0 = Parameter(lambda_0_initial, dtype=tf.float64, transform=positive())
-        pass
 
     def calculate_marginal_likelihood(
         self,
@@ -89,7 +85,6 @@ class BayesianLinearRegression(tf.Module):
         self.b_0 = Parameter([b_0_initial], dtype=tf.float64, transform=positive())
         self.mu_0 = Parameter([[mu_0_initial[0]], [mu_0_initial[1]]], dtype=tf.float64)
         self.lambda_0 = Parameter(lambda_0_initial, dtype=tf.float64, transform=positive())
-        pass
 
     def calculate_marginal_likelihood(
         self,
@@ -256,7 +251,7 @@ def train_bayesian_linear_regression(
     by maximising the marginal likelihood.
     """
     # Need to add an offset to the design matrix
-    x = tf.concat([x, tf.ones_like(x)], axis=1)
+    x = tf.concat([x, tf.ones_like(x)], 1)
     model = BayesianLinearRegression(
         data=(x, y),
         a_0_initial=1.0,
