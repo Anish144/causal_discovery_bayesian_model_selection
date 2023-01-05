@@ -56,10 +56,10 @@ def run_optimizer(model, train_dataset, iterations, data_size, minibatch_size, a
 
             # iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
 
-            if step / float(data_size / minibatch_size) > 10000:
-                if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < 0.2 * np.std(logf[-100:]):
-                    print(f"\n BREAKING! Step: {step} \n")
-                    break
+            # if step / float(data_size / minibatch_size) > 10000:
+            #     if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < 0.2 * np.std(logf[-100:]):
+            #         print(f"\n BREAKING! Step: {step} \n")
+            #         break
     return logf
 
 
