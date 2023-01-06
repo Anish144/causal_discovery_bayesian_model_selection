@@ -52,7 +52,7 @@ def run_optimizer(model, train_dataset, iterations, data_size, minibatch_size, a
         optimization_step()
         neg_elbo = training_loss().numpy()
         logf.append(neg_elbo)
-        if step % 5000 == 0:
+        # if step % 5000 == 0:
 
             # iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
 
