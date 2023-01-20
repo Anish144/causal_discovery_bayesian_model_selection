@@ -18,7 +18,11 @@ from gpflow.utilities import positive, to_default_float
 from gpflow.utilities.ops import pca_reduce
 from gpflow.models.gpr import GPR
 from gpflow.models.model import GPModel, MeanAndVariance
-from gpflow.models.training_mixins import InputData, InternalDataTrainingLossMixin, OutputData
+from gpflow.models.training_mixins import (
+    InputData,
+    InternalDataTrainingLossMixin,
+    OutputData,
+)
 from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
 from functools import partial
 from gpflow.conditionals.util import sample_mvn
@@ -84,10 +88,8 @@ class GeneralisedGPLVM(SVGP):
 
         assert np.all(X_data_mean.shape == X_data_var.shape)
 
-        if (inducing_variable is None):
-            raise ValueError(
-                "BayesianGPLVM needs `inducing_variable`"
-            )
+        if inducing_variable is None:
+            raise ValueError("BayesianGPLVM needs `inducing_variable`")
 
         # Make only the non latent part of inducing trainable
         self.inducing_variable = inducingpoint_wrapper(inducing_variable)
@@ -96,12 +98,18 @@ class GeneralisedGPLVM(SVGP):
 
         # deal with parameters for the prior mean variance of X
         if X_prior_mean is None:
-            X_prior_mean = tf.zeros((self.num_data, self.num_latent_gps), dtype=default_float())
+            X_prior_mean = tf.zeros(
+                (self.num_data, self.num_latent_gps), dtype=default_float()
+            )
         if X_prior_var is None:
             X_prior_var = tf.ones((self.num_data, self.num_latent_gps))
 
-        self.X_prior_mean = tf.convert_to_tensor(np.atleast_1d(X_prior_mean), dtype=default_float())
-        self.X_prior_var = tf.convert_to_tensor(np.atleast_1d(X_prior_var), dtype=default_float())
+        self.X_prior_mean = tf.convert_to_tensor(
+            np.atleast_1d(X_prior_mean), dtype=default_float()
+        )
+        self.X_prior_var = tf.convert_to_tensor(
+            np.atleast_1d(X_prior_var), dtype=default_float()
+        )
 
         assert self.X_prior_mean.shape[0] == self.num_data
         assert self.X_prior_mean.shape[1] == self.num_latent_gps
@@ -111,17 +119,11 @@ class GeneralisedGPLVM(SVGP):
     def get_new_mean_vars(self, X_data, data_idx) -> MeanAndVariance:
         batch_X_means = tf.gather(self.X_data_mean, data_idx)
         batch_X_vars = tf.gather(self.X_data_var, data_idx)
-        new_mean = tf.concat(
-            [X_data, batch_X_means], axis=1
-        )
+        new_mean = tf.concat([X_data, batch_X_means], axis=1)
         # Set observed variance to 0
         var_param = tf.zeros(shape=(self.num_data, 1), dtype=default_float())
-        varbatch = tf.gather(
-            var_param, data_idx
-        )
-        new_variance = tf.concat(
-            [varbatch, batch_X_vars], axis=1
-        )
+        varbatch = tf.gather(var_param, data_idx)
+        new_variance = tf.concat([varbatch, batch_X_vars], axis=1)
         return new_mean, new_variance, batch_X_means, batch_X_vars
 
     def predict_f_samples(
@@ -157,7 +159,9 @@ class GeneralisedGPLVM(SVGP):
             )
 
         # check below for shape info
-        mean, cov = self.predict_f(Xnew, full_cov=full_cov, full_output_cov=full_output_cov)
+        mean, cov = self.predict_f(
+            Xnew, full_cov=full_cov, full_output_cov=full_output_cov
+        )
         if obs_noise is True and full_cov is False:
             cov += self.likelihood.variance
         if full_cov:
@@ -176,9 +180,13 @@ class GeneralisedGPLVM(SVGP):
             )  # [..., (S), N, P]
         return samples  # [..., (S), N, P]
 
-    def predict_full_samples_layer(self, Xnew, obs_noise=False, num_latent_samples=50, num_gp_samples=50):
+    def predict_full_samples_layer(
+        self, Xnew, obs_noise=False, num_latent_samples=50, num_gp_samples=50
+    ):
         w = np.random.normal(size=(num_latent_samples, Xnew.shape[0], 1))
-        sampling_func = lambda x: self.predict_f_samples(x, obs_noise=obs_noise, num_samples=num_gp_samples)
+        sampling_func = lambda x: self.predict_f_samples(
+            x, obs_noise=obs_noise, num_samples=num_gp_samples
+        )
 
         def sample_latent_gp(w_single):
             X = np.concatenate([Xnew, w_single], axis=1)
@@ -205,9 +213,9 @@ class GeneralisedGPLVM(SVGP):
             num_gp_samples=num_gp_samples,
             num_latent_samples=num_latent_samples,
         )
-        lower = np.percentile(samples, lower_quantile, axis=[0,1])
-        median = np.percentile(samples, 50, axis=[0,1])
-        upper = np.percentile(samples, upper_quantile, axis=[0,1])
+        lower = np.percentile(samples, lower_quantile, axis=[0, 1])
+        median = np.percentile(samples, 50, axis=[0, 1])
+        upper = np.percentile(samples, upper_quantile, axis=[0, 1])
 
         return lower, median, upper, samples
 
@@ -224,26 +232,19 @@ class GeneralisedGPLVM(SVGP):
             new_mean,
             new_variance,
             x_data_mean,
-            x_data_var
+            x_data_var,
         ) = self.get_new_mean_vars(X_data, data_idx)
         # We integrate out the latent variable by taking J MC samples
         # [num_mc, num_batch, num_dim]
         X_samples = tfp.distributions.MultivariateNormalDiag(
             loc=new_mean,
-            scale_diag=new_variance ** 0.5,
+            scale_diag=new_variance**0.5,
         ).sample(self.num_mc_samples)
-        X_samples = tf.reshape(
-            X_samples,
-            [-1, new_mean.shape[1]]
-        )
+        X_samples = tf.reshape(X_samples, [-1, new_mean.shape[1]])
 
         # KL[q(x) || p(x)]
-        batch_prior_means = tf.gather(
-            self.X_prior_mean, data_idx
-        )
-        batch_prior_vars = tf.gather(
-            self.X_prior_var, data_idx
-        )
+        batch_prior_means = tf.gather(self.X_prior_mean, data_idx)
+        batch_prior_vars = tf.gather(self.X_prior_var, data_idx)
         dX_data_var = (
             x_data_var
             if x_data_var.shape.ndims == 2
@@ -255,22 +256,25 @@ class GeneralisedGPLVM(SVGP):
         KL += 0.5 * tf.reduce_sum(tf.math.log(batch_prior_vars + 1e-30))
         KL -= 0.5 * NQ
         KL += 0.5 * tf.reduce_sum(
-            (tf.square(x_data_mean - batch_prior_means) + dX_data_var) / batch_prior_vars
+            (tf.square(x_data_mean - batch_prior_means) + dX_data_var)
+            / batch_prior_vars
         )
 
         KL_2 = self.prior_kl()
 
         # MC over 1st dim
-        f_mean, f_var = self.predict_f(X_samples, full_cov=False, full_output_cov=False)
+        f_mean, f_var = self.predict_f(
+            X_samples, full_cov=False, full_output_cov=False
+        )
         f_mean = tf.reshape(
-            f_mean,
-            [self.num_mc_samples, -1, self.num_latent_gps]
+            f_mean, [self.num_mc_samples, -1, self.num_latent_gps]
         )
         f_var = tf.reshape(
-            f_var,
-            [self.num_mc_samples, -1, self.num_latent_gps]
+            f_var, [self.num_mc_samples, -1, self.num_latent_gps]
         )
-        var_exp_tensor = self.likelihood.variational_expectations(f_mean, f_var, Y_data)
+        var_exp_tensor = self.likelihood.variational_expectations(
+            f_mean, f_var, Y_data
+        )
         var_exp = tf.reduce_mean(var_exp_tensor, axis=0)
         if self.num_data is not None:
             num_data = tf.cast(self.num_data, KL_2.dtype)
@@ -285,15 +289,10 @@ class GeneralisedGPLVM(SVGP):
         Just return the predictive part of the loss.
         """
         X_data, Y_data, data_idx = data
-        samples = self.predict_full_samples_layer(
-            X_data, obs_noise=False
-        )
+        samples = self.predict_full_samples_layer(X_data, obs_noise=False)
         normal_dist = tfp.distributions.Normal(
-            loc=samples,
-            scale=self.likelihood.variance ** 0.5
+            loc=samples, scale=self.likelihood.variance**0.5
         )
         prob_samples = normal_dist.prob(Y_data)
-        mc_samples = tf.math.log(
-            tf.reduce_mean(prob_samples, axis=[0, 1])
-        )
+        mc_samples = tf.math.log(tf.reduce_mean(prob_samples, axis=[0, 1]))
         return tf.reduce_sum(mc_samples)

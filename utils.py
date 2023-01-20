@@ -10,13 +10,11 @@ import tensorflow as tf
 
 
 BEST_SCORES = namedtuple(
-    'BEST_SCORES', 'best_loss_x best_loss_y_x best_loss_y best_loss_x_y'
+    "BEST_SCORES", "best_loss_x best_loss_y_x best_loss_y best_loss_x_y"
 )
 
 
-def return_all_scores(
-    final_scores: defaultdict(dict)
-):
+def return_all_scores(final_scores: defaultdict(dict)):
     """
     This helper takes a default dict that has the run number as keys
     and a dit of random restarts as values. It returns a dict with the run
@@ -43,7 +41,7 @@ def return_best_causal_scores(
     all_loss_x: defaultdict(list),
     all_loss_y_x: defaultdict(list),
     all_loss_y: defaultdict(list),
-    all_loss_x_y: defaultdict(list)
+    all_loss_x_y: defaultdict(list),
 ) -> dict:
     """
     This takes dictionaries of all the scores and returns a dictionary with
@@ -59,9 +57,7 @@ def return_best_causal_scores(
         best_y = np.nanmin(all_loss_y[run_idx])
         best_x_y = np.nanmin(all_loss_x_y[run_idx])
 
-        best_causal_score = BEST_SCORES(
-            best_x, best_y_x, best_y, best_x_y
-        )
+        best_causal_score = BEST_SCORES(best_x, best_y_x, best_y, best_x_y)
         best_scores[run_idx] = best_causal_score
 
     return best_scores
@@ -76,8 +72,12 @@ def get_correct(best_scores: dict, targets: list):
     for run_idx in list(best_scores.keys()):
         current_scores = best_scores[run_idx]
         current_target = targets[run_idx]
-        x_causes_y_score = current_scores.best_loss_x + current_scores.best_loss_y_x
-        y_causes_x_score = current_scores.best_loss_y + current_scores.best_loss_x_y
+        x_causes_y_score = (
+            current_scores.best_loss_x + current_scores.best_loss_y_x
+        )
+        y_causes_x_score = (
+            current_scores.best_loss_y + current_scores.best_loss_x_y
+        )
         if current_target > 0:
             if x_causes_y_score < y_causes_x_score:
                 correct_idx.append(run_idx)
@@ -93,4 +93,3 @@ def get_correct(best_scores: dict, targets: list):
             else:
                 tf.print(f"Can't decide for run {run_idx}")
     return correct_idx, wrong_idx
-

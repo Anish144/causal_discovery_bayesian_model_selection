@@ -41,10 +41,12 @@ def run_optimizer(model, ds_iter, iterations, adam_lr, nat_lr):
     variational_params = [(model.q_mu, model.q_sqrt)]
     natgrad_opt = NaturalGradient(gamma=nat_lr)
     optimizer = tf.optimizers.Adam(adam_lr)
+
     @tf.function
     def optimization_step():
         optimizer.minimize(training_loss, model.trainable_variables)
         natgrad_opt.minimize(training_loss, variational_params)
+
     iterator = trange(iterations)
     for step in iterator:
         optimization_step()
@@ -54,7 +56,9 @@ def run_optimizer(model, ds_iter, iterations, adam_lr, nat_lr):
             iterator.set_description(f"EPOCH: {step}, ELBO: {elbo}")
 
             if step > 5000:
-                if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < np.std(logf[-100:]):
+                if np.abs(np.mean(logf[-5000:])) - np.abs(
+                    np.mean(logf[-100:])
+                ) < np.std(logf[-100:]):
                     print("Breaking!")
                     break
     return logf
@@ -77,7 +81,9 @@ def train_marginal_model(
     plot_fit: Optional[bool] = False,
 ):
     # Define kernels
-    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=kernel_lengthscale_1)
+    sq_exp = gpflow.kernels.SquaredExponential(
+        lengthscales=kernel_lengthscale_1
+    )
     sq_exp.variance.assign(kernel_variance)
     matern = gpflow.kernels.Matern32(lengthscales=kernel_lengthscale_2)
     matern.variance.assign(kernel_variance)
@@ -88,12 +94,10 @@ def train_marginal_model(
     # Define marginal model
     marginal_model = GPDE(
         kernel=kernel,
-        likelihood=gpflow.likelihoods.Gaussian(
-            variance=likelihood_variance
-        ),
+        likelihood=gpflow.likelihoods.Gaussian(variance=likelihood_variance),
         inducing_variable=Z,
         num_quadrature=100,
-        whiten=True
+        whiten=True,
     )
     ds_iter = marginal_model._init_quadrature(Y=y, num_minibatch=100)
     logf = run_optimizer(
@@ -101,21 +105,24 @@ def train_marginal_model(
         ds_iter=ds_iter,
         iterations=50000,
         adam_lr=adam_lr,
-        nat_lr=nat_lr
+        nat_lr=nat_lr,
     )
 
     N = y.shape[0]
     marginal_model.num_minibatch = N
     num_quadrature = 100
-    def full_init_quadrature(Y, num_quadrature, num_minibatch = 100):
+
+    def full_init_quadrature(Y, num_quadrature, num_minibatch=100):
         num_minibatch = num_minibatch
         quadrature = NDiagGHQuadrature(1, num_quadrature)
-        quadrature_locs, quadrature_weights = quadrature._build_X_W(np.zeros(1), np.ones(1))
-        quadrature_weights = quadrature_weights[:,0]
+        quadrature_locs, quadrature_weights = quadrature._build_X_W(
+            np.zeros(1), np.ones(1)
+        )
+        quadrature_weights = quadrature_weights[:, 0]
         quadrature_weights = quadrature_weights[None, :]
         quadrature_locs = tf.expand_dims(quadrature_locs, axis=0)
-        quadrature_locs = tf.tile(quadrature_locs, multiples=[Y.shape[0],1,1])
-        Y = Y[:, None,:]
+        quadrature_locs = tf.tile(quadrature_locs, multiples=[Y.shape[0], 1, 1])
+        Y = Y[:, None, :]
         Y = tf.tile(Y, multiples=[1, num_quadrature, 1])
         X = quadrature_locs
         return X, Y
@@ -124,17 +131,16 @@ def train_marginal_model(
     full_elbo = marginal_model.elbo(ds_full)
     print(f"Full Loss: {- full_elbo}")
 
-    loss = - full_elbo
+    loss = -full_elbo
 
     if plot_fit:
         # Plot the fit to see if everything is ok
         lower, median, upper, samples = marginal_model.predict_credible_layer(
-            obs_noise=True,
-            sample_size=1000
+            obs_noise=True, sample_size=1000
         )
-        textstr = 'like_var=%.2f\nneg_elbo=%.2f\n'%(
+        textstr = "like_var=%.2f\nneg_elbo=%.2f\n" % (
             marginal_model.likelihood.variance.numpy(),
-            loss.numpy()
+            loss.numpy(),
         )
         plt.text(-8, 0, textstr, fontsize=8)
         plt.hist(y[:, 0], bins=100)
@@ -142,13 +148,12 @@ def train_marginal_model(
         plt.xlim(-3, 3)
 
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
         )
         plt.close()
     else:
@@ -189,20 +194,18 @@ def train_conditional_model(
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern])
 
     Z = np.concatenate(
-            [
-                np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
-                np.random.randn(num_inducing, 1),
-            ],
-            axis=1
-        )
+        [
+            np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
+            np.random.randn(num_inducing, 1),
+        ],
+        axis=1,
+    )
     conditional_model = GPCDE(
         kernel=kernel,
-        likelihood=gpflow.likelihoods.Gaussian(
-            variance=likelihood_variance
-        ),
+        likelihood=gpflow.likelihoods.Gaussian(variance=likelihood_variance),
         inducing_variable=Z,
         num_quadrature=100,
-        whiten=True
+        whiten=True,
     )
     ds_iter = conditional_model._init_quadrature(X=x, Y=y, num_minibatch=100)
 
@@ -218,55 +221,61 @@ def train_conditional_model(
     conditional_model.num_minibatch = N
     full_ds_iter = conditional_model._init_quadrature(x, y, N)
     num_quadrature = 100
-    def full_init_quadrature(X, Y, num_minibatch = 100):
-        num_data= X.shape[0]
+
+    def full_init_quadrature(X, Y, num_minibatch=100):
+        num_data = X.shape[0]
         num_dim = X.shape[1]
         num_minibatch = num_minibatch
         quadrature = NDiagGHQuadrature(1, num_quadrature)
-        quadrature_locs, quadrature_weights = quadrature._build_X_W(np.zeros(1), np.ones(1))
-        quadrature_weights = quadrature_weights[:,0]
+        quadrature_locs, quadrature_weights = quadrature._build_X_W(
+            np.zeros(1), np.ones(1)
+        )
+        quadrature_weights = quadrature_weights[:, 0]
         quadrature_weights = quadrature_weights[None, :]
         quadrature_locs = tf.expand_dims(quadrature_locs, axis=0)
-        quadrature_locs = tf.tile(quadrature_locs, multiples=[X.shape[0],1,1])
-        X = X[:,None,:]
-        Y = Y[:,None,:]
+        quadrature_locs = tf.tile(quadrature_locs, multiples=[X.shape[0], 1, 1])
+        X = X[:, None, :]
+        Y = Y[:, None, :]
         X = tf.tile(X, multiples=[1, num_quadrature, 1])
         Y = tf.tile(Y, multiples=[1, num_quadrature, 1])
-        X = tf.concat([X, quadrature_locs],axis=-1)
+        X = tf.concat([X, quadrature_locs], axis=-1)
         return X, Y
 
     ds_full = full_init_quadrature(x, y, N)
     full_elbo = conditional_model.elbo(ds_full)
     print(f"Full Loss: {- full_elbo}")
 
-    loss = - full_elbo
+    loss = -full_elbo
 
     if plot_fit:
         # Plot the fit to see if everything is ok
         obs_new = np.linspace(x.min() - 2, x.max() + 1, 1000)[:, None]
         # Sample from the prior
-        lower, median, upper, samples = conditional_model.predict_credible_layer(
-            Xnew=obs_new,
-            obs_noise=True
+        (
+            lower,
+            median,
+            upper,
+            samples,
+        ) = conditional_model.predict_credible_layer(
+            Xnew=obs_new, obs_noise=True
         )
-        textstr = 'like_var=%.2f\nneg_elbo=%.2f\n'%(
+        textstr = "like_var=%.2f\nneg_elbo=%.2f\n" % (
             conditional_model.likelihood.variance.numpy(),
-            loss
+            loss,
         )
         plt.text(x.min() - 6, 0, textstr, fontsize=8)
-        plt.scatter(x[:, 0], y[:, 0], c='r')
-        plt.plot(obs_new, median, c='b', alpha=0.2)
+        plt.scatter(x[:, 0], y[:, 0], c="r")
+        plt.plot(obs_new, median, c="b", alpha=0.2)
         # plt.scatter(obs_new[:, 0], samples[0, 0], alpha=0.5)
         plt.fill_between(obs_new[:, 0], upper[:, 0], lower[:, 0], alpha=0.5)
 
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
         )
         plt.close()
     else:
@@ -275,21 +284,21 @@ def train_conditional_model(
     return loss
 
 
-def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal, save_name):
-    num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+def causal_score_gplvm_quadrature(
+    args, x, y, run_number, restart_number, causal, save_name
+):
+    num_inducing = (
+        args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    )
 
     # Sample hyperparams
     kernel_variance = 1.0
     loss_x = None
     # Likelihood variance
-    kappa = np.random.uniform(
-        low=10.0, high=100, size=[1]
-    )
-    likelihood_variance = 1. / (kappa ** 2)
+    kappa = np.random.uniform(low=10.0, high=100, size=[1])
+    likelihood_variance = 1.0 / (kappa**2)
     # Kernel lengthscale
-    lamda = np.random.uniform(
-        low=1, high=100, size=[2]
-    )
+    lamda = np.random.uniform(low=1, high=100, size=[2])
     kernel_lengthscale = 1.0 / lamda
     adam_lr = np.random.choice(adam_learning_rates)
     nat_lr = np.random.choice(natgrad_learning_rates)
@@ -315,14 +324,10 @@ def causal_score_gplvm_quadrature(args, x, y, run_number, restart_number, causal
     # Sample hyperparams
     kernel_variance = 1.0
     # Likelihood variance
-    kappa = np.random.uniform(
-        low=10.0, high=100, size=[1]
-    )
-    likelihood_variance = 1. / (kappa ** 2)
+    kappa = np.random.uniform(low=10.0, high=100, size=[1])
+    likelihood_variance = 1.0 / (kappa**2)
     # Kernel lengthscale
-    lamda = np.random.uniform(
-        low=1.0, high=100, size=[2]
-    )
+    lamda = np.random.uniform(low=1.0, high=100, size=[2])
     kernel_lengthscale = 1.0 / lamda
     adam_lr = np.random.choice(adam_learning_rates)
     nat_lr = np.random.choice(natgrad_learning_rates)
@@ -354,15 +359,17 @@ def min_causal_score_gplvm_quadrature(args, x, y, weight, target):
     # Find data index to start and end the runs on
     data_start_idx = args.data_start
     data_end_idx = args.data_end if args.data_end < len(x) else len(x)
-    save_name = f"fullscore-{args.data}-gplvmquadrature-reinit{args.random_restarts}-numind{args.num_inducing}" \
-                f"_start:{data_start_idx}_end:{data_end_idx}"
-    save_path = Path(f'{args.work_dir}/results/{save_name}.p')
+    save_name = (
+        f"fullscore-{args.data}-gplvmquadrature-reinit{args.random_restarts}-numind{args.num_inducing}"
+        f"_start:{data_start_idx}_end:{data_end_idx}"
+    )
+    save_path = Path(f"{args.work_dir}/results/{save_name}.p")
 
     if save_path.is_file():
         with open(save_path, "rb") as f:
             checkpoint = pickle.load(f)
-        correct_idx = checkpoint['correct_idx']
-        wrong_idx = checkpoint['wrong_idx']
+        correct_idx = checkpoint["correct_idx"]
+        wrong_idx = checkpoint["wrong_idx"]
         scores = checkpoint["scores"]
         starting_run_number = checkpoint["run_number"]
     else:
@@ -371,13 +378,18 @@ def min_causal_score_gplvm_quadrature(args, x, y, weight, target):
         scores = []
         starting_run_number = data_start_idx
 
-    for i in tqdm(range(starting_run_number, data_end_idx), desc="Epochs", leave=True, position=0):
+    for i in tqdm(
+        range(starting_run_number, data_end_idx),
+        desc="Epochs",
+        leave=True,
+        position=0,
+    ):
         # Find the target
         run_target = target[i]
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
-        tf.print(f'\n Run: {i}')
+        tf.print(f"\n Run: {i}")
 
         # Normalise the data
         x_train = StandardScaler().fit_transform(x[i]).astype(np.float64)
@@ -392,38 +404,35 @@ def min_causal_score_gplvm_quadrature(args, x, y, weight, target):
             np.random.seed(seed)
             tf.random.set_seed(seed)
             tf.print(f"\n Random restart: {j}")
-            (
-                loss_x,
-                loss_y_x,
-
-            ) = causal_score_gplvm_quadrature(
+            (loss_x, loss_y_x,) = causal_score_gplvm_quadrature(
                 args=args,
                 x=x_train,
                 y=y_train,
                 run_number=i,
                 restart_number=j,
                 causal=True,
-                save_name=save_name
+                save_name=save_name,
             )
-            (
-                loss_y,
-                loss_x_y,
-
-            ) = causal_score_gplvm_quadrature(
+            (loss_y, loss_x_y,) = causal_score_gplvm_quadrature(
                 args=args,
                 x=y_train,
                 y=x_train,
                 run_number=i,
                 restart_number=j,
                 causal=False,
-                save_name=save_name
+                save_name=save_name,
             )
             if loss_x is not None:
                 rr_loss_x.append(loss_x)
                 rr_loss_y_x.append(loss_y_x)
                 rr_loss_y.append(loss_y)
                 rr_loss_x_y.append(loss_x_y)
-                tf.print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
+                tf.print(
+                    loss_x.numpy(),
+                    loss_y_x.numpy(),
+                    loss_y.numpy(),
+                    loss_x_y.numpy(),
+                )
         # Need to find the best losses from the list
         # Calculate losses
         if args.debug:
@@ -444,15 +453,20 @@ def min_causal_score_gplvm_quadrature(args, x, y, weight, target):
                 correct_idx.append(i)
             else:
                 wrong_idx.append(i)
-        scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
+        scores.append(
+            (
+                (min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()),
+                (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy()),
+            )
+        )
         tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
         # Save checkpoint
-        with open(save_path, 'wb') as f:
+        with open(save_path, "wb") as f:
             save_dict = {
                 "correct_idx": correct_idx,
                 "wrong_idx": wrong_idx,
                 "weight": weight,
                 "scores": scores,
-                "run_number": i + 1
+                "run_number": i + 1,
             }
             pickle.dump(save_dict, f)

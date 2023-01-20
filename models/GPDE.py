@@ -11,6 +11,7 @@ from gpflow.utilities import positive, triangular
 from gpflow.models.util import inducingpoint_wrapper
 from gpflow.conditionals.util import sample_mvn
 from gpflow.quadrature import NDiagGHQuadrature
+
 # from gparkme.posteriors import create_posterior
 from typing import Optional
 
@@ -27,7 +28,7 @@ class GPDE(SVGP):
         whiten: bool = True,
         q_mu=None,
         q_sqrt=None,
-        num_latent_gps=1
+        num_latent_gps=1,
     ):
         super().__init__(
             kernel,
@@ -42,17 +43,19 @@ class GPDE(SVGP):
         )
         self.num_quadrature = num_quadrature
 
-    def _init_quadrature(self, Y, num_minibatch = 100):
-        self.num_data= Y.shape[0]
+    def _init_quadrature(self, Y, num_minibatch=100):
+        self.num_data = Y.shape[0]
         self.num_dim = Y.shape[1]
         self.num_minibatch = num_minibatch
         self.quadrature = NDiagGHQuadrature(1, self.num_quadrature)
-        quadrature_locs, quadrature_weights = self.quadrature._build_X_W(np.zeros(1), np.ones(1))
-        self.quadrature_weights = quadrature_weights[:,0]
+        quadrature_locs, quadrature_weights = self.quadrature._build_X_W(
+            np.zeros(1), np.ones(1)
+        )
+        self.quadrature_weights = quadrature_weights[:, 0]
         self.quadrature_weights = self.quadrature_weights[None, :]
         quadrature_locs = tf.expand_dims(quadrature_locs, axis=0)
-        quadrature_locs = tf.tile(quadrature_locs, multiples=[Y.shape[0],1,1])
-        Y = Y[:,None,:]
+        quadrature_locs = tf.tile(quadrature_locs, multiples=[Y.shape[0], 1, 1])
+        Y = Y[:, None, :]
         Y = tf.tile(Y, multiples=[1, self.num_quadrature, 1])
         X = quadrature_locs
         ds = tf.data.Dataset.from_tensor_slices((X, Y))
@@ -92,7 +95,9 @@ class GPDE(SVGP):
             )
 
         # check below for shape info
-        mean, cov = self.predict_f(Xnew, full_cov=full_cov, full_output_cov=full_output_cov)
+        mean, cov = self.predict_f(
+            Xnew, full_cov=full_cov, full_output_cov=full_output_cov
+        )
         if obs_noise is True and full_cov is False:
             cov += self.likelihood.variance
         if full_cov:
@@ -111,9 +116,17 @@ class GPDE(SVGP):
             )  # [..., (S), N, P]
         return samples  # [..., (S), N, P]
 
-    def predict_full_samples_layer(self, sample_size, obs_noise=False, num_latent_samples=50, num_gp_samples=50):
+    def predict_full_samples_layer(
+        self,
+        sample_size,
+        obs_noise=False,
+        num_latent_samples=50,
+        num_gp_samples=50,
+    ):
         w = np.random.normal(size=(num_latent_samples, sample_size, 1))
-        sampling_func = lambda x: self.predict_f_samples(x, obs_noise=obs_noise, num_samples=num_gp_samples)
+        sampling_func = lambda x: self.predict_f_samples(
+            x, obs_noise=obs_noise, num_samples=num_gp_samples
+        )
 
         def sample_latent_gp(w_single):
             X = w_single
@@ -140,12 +153,11 @@ class GPDE(SVGP):
             num_gp_samples=num_gp_samples,
             num_latent_samples=num_latent_samples,
         )
-        lower = np.percentile(samples, lower_quantile, axis=[0,1])
-        median = np.percentile(samples, 50, axis=[0,1])
-        upper = np.percentile(samples, upper_quantile, axis=[0,1])
+        lower = np.percentile(samples, lower_quantile, axis=[0, 1])
+        median = np.percentile(samples, 50, axis=[0, 1])
+        upper = np.percentile(samples, upper_quantile, axis=[0, 1])
 
         return lower, median, upper, samples
-
 
     def maximum_log_likelihood_objective(self, data) -> tf.Tensor:
         return self.elbo(data)
@@ -156,8 +168,8 @@ class GPDE(SVGP):
         the log marginal likelihood of the model.
         """
         X, Y = data
-        X = tf.reshape(X, (self.num_minibatch*self.num_quadrature, 1))
-        Y = tf.reshape(Y, (self.num_minibatch*self.num_quadrature, 1))
+        X = tf.reshape(X, (self.num_minibatch * self.num_quadrature, 1))
+        Y = tf.reshape(Y, (self.num_minibatch * self.num_quadrature, 1))
         kl = self.prior_kl()
         f_mean, f_var = self.predict_f(X)
         var_exp = self.likelihood.variational_expectations(f_mean, f_var, Y)
@@ -172,5 +184,7 @@ class GPDE(SVGP):
 
         # var_exp = tf.reduce_sum(var_exp, axis=0) * scale
         quadrature_weights = self.quadrature_weights
-        term1 = tf.math.reduce_logsumexp(var_exp + tf.math.log(quadrature_weights),axis=1)
+        term1 = tf.math.reduce_logsumexp(
+            var_exp + tf.math.log(quadrature_weights), axis=1
+        )
         return tf.reduce_sum(term1) * scale - kl

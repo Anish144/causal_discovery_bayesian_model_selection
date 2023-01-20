@@ -16,7 +16,11 @@ from gpflow.utilities import positive, to_default_float
 from gpflow.utilities.ops import pca_reduce
 from gpflow.models.gpr import GPR
 from gpflow.models.model import GPModel, MeanAndVariance
-from gpflow.models.training_mixins import InputData, InternalDataTrainingLossMixin, OutputData
+from gpflow.models.training_mixins import (
+    InputData,
+    InternalDataTrainingLossMixin,
+    OutputData,
+)
 from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
 
 import tensorflow_probability as tfp
@@ -52,7 +56,9 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         :param X_prior_var: prior variance used in KL term of bound. By default 1.
         """
         num_data, num_latent_gps = X_data_mean.shape
-        super().__init__(kernel, likelihoods.Gaussian(), num_latent_gps=num_latent_gps)
+        super().__init__(
+            kernel, likelihoods.Gaussian(), num_latent_gps=num_latent_gps
+        )
         self.data = data_input_to_tensor(data)
         assert X_data_var.ndim == 2
 
@@ -66,8 +72,12 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         self.jitter = jitter
 
         assert np.all(X_data_mean.shape == X_data_var.shape)
-        assert X_data_mean.shape[0] == self.data.shape[0], "X mean and Y must be same size."
-        assert X_data_var.shape[0] == self.data.shape[0], "X var and Y must be same size."
+        assert (
+            X_data_mean.shape[0] == self.data.shape[0]
+        ), "X mean and Y must be same size."
+        assert (
+            X_data_var.shape[0] == self.data.shape[0]
+        ), "X var and Y must be same size."
 
         if (inducing_variable is None) == (num_inducing_variables is None):
             raise ValueError(
@@ -89,12 +99,18 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
 
         # deal with parameters for the prior mean variance of X
         if X_prior_mean is None:
-            X_prior_mean = tf.zeros((self.num_data, self.num_latent_gps), dtype=default_float())
+            X_prior_mean = tf.zeros(
+                (self.num_data, self.num_latent_gps), dtype=default_float()
+            )
         if X_prior_var is None:
             X_prior_var = tf.ones((self.num_data, self.num_latent_gps))
 
-        self.X_prior_mean = tf.convert_to_tensor(np.atleast_1d(X_prior_mean), dtype=default_float())
-        self.X_prior_var = tf.convert_to_tensor(np.atleast_1d(X_prior_var), dtype=default_float())
+        self.X_prior_mean = tf.convert_to_tensor(
+            np.atleast_1d(X_prior_mean), dtype=default_float()
+        )
+        self.X_prior_var = tf.convert_to_tensor(
+            np.atleast_1d(X_prior_var), dtype=default_float()
+        )
 
         assert self.X_prior_mean.shape[0] == self.num_data
         assert self.X_prior_mean.shape[1] == self.num_latent_gps
@@ -102,14 +118,10 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         assert self.X_prior_var.shape[1] == self.num_latent_gps
 
     def get_new_mean_vars(self) -> MeanAndVariance:
-        new_mean = tf.concat(
-            [self.in_data, self.X_data_mean], axis=1
-        )
+        new_mean = tf.concat([self.in_data, self.X_data_mean], axis=1)
         # Set observed variance to 0
         var_param = tf.zeros(shape=self.in_data.shape, dtype=default_float())
-        new_variance = tf.concat(
-            [var_param, self.X_data_var], axis=1
-        )
+        new_variance = tf.concat([var_param, self.X_data_var], axis=1)
         return new_mean, new_variance
 
     def maximum_log_likelihood_objective(self) -> tf.Tensor:
@@ -134,29 +146,37 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         # tf.print(tf.reduce_min(new_variance[:, 1]))
         psi2 = tf.reduce_sum(
             expectation(
-                pX, (self.kernel, self.inducing_variable), (self.kernel, self.inducing_variable)
+                pX,
+                (self.kernel, self.inducing_variable),
+                (self.kernel, self.inducing_variable),
             ),
             axis=0,
         )
-        cov_uu = covariances.Kuu(self.inducing_variable, self.kernel, jitter=self.jitter)
+        cov_uu = covariances.Kuu(
+            self.inducing_variable, self.kernel, jitter=self.jitter
+        )
         L = tf.linalg.cholesky(cov_uu)
         # L = cholesky(cov_uu)
-        tf.debugging.assert_all_finite(
-            L, message="L is not finite!"
-        )
+        tf.debugging.assert_all_finite(L, message="L is not finite!")
         sigma2 = self.likelihood.variance
         # Compute intermediate matrices
         A = tf.linalg.triangular_solve(L, tf.transpose(psi1), lower=True)
         tmp = tf.linalg.triangular_solve(L, psi2, lower=True)
-        AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
+        AAT = (
+            tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True)
+            / sigma2
+        )
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         LB = tf.linalg.cholesky(B)
         # LB = cholesky(B)
-        tf.debugging.assert_all_finite(
-            LB, message="LB is not finite!"
-        )
+        tf.debugging.assert_all_finite(LB, message="LB is not finite!")
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
-        c = tf.linalg.triangular_solve(LB, tf.linalg.matmul(A, Y_data), lower=True) / sigma2
+        c = (
+            tf.linalg.triangular_solve(
+                LB, tf.linalg.matmul(A, Y_data), lower=True
+            )
+            / sigma2
+        )
 
         # KL[q(x) || p(x)]
         dX_data_var = (
@@ -170,7 +190,8 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         KL += 0.5 * tf.reduce_sum(tf.math.log(self.X_prior_var + 1e-30))
         KL -= 0.5 * NQ
         KL += 0.5 * tf.reduce_sum(
-            (tf.square(self.X_data_mean - self.X_prior_mean) + dX_data_var) / self.X_prior_var
+            (tf.square(self.X_data_mean - self.X_prior_mean) + dX_data_var)
+            / self.X_prior_var
         )
 
         # compute log marginal bound
@@ -179,17 +200,27 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         bound += -0.5 * D * log_det_B
         bound += -0.5 * tf.reduce_sum(tf.square(Y_data)) / sigma2
         bound += 0.5 * tf.reduce_sum(tf.square(c))
-        bound += -0.5 * D * (tf.reduce_sum(psi0) / sigma2 - tf.reduce_sum(tf.linalg.diag_part(AAT)))
+        bound += (
+            -0.5
+            * D
+            * (
+                tf.reduce_sum(psi0) / sigma2
+                - tf.reduce_sum(tf.linalg.diag_part(AAT))
+            )
+        )
         bound -= KL
         # if np.isnan(LB.numpy()).sum() > 0:
         #     print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
-            # import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         # print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
         return bound
 
     def predict_f(
-        self, Xnew: InputData, full_cov: bool = False, full_output_cov: bool = False
+        self,
+        Xnew: InputData,
+        full_cov: bool = False,
+        full_output_cov: bool = False,
     ) -> MeanAndVariance:
         """
         Compute the mean and variance of the latent function at some new points.
@@ -211,21 +242,35 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         psi1 = expectation(pX, (self.kernel, self.inducing_variable))
         psi2 = tf.reduce_sum(
             expectation(
-                pX, (self.kernel, self.inducing_variable), (self.kernel, self.inducing_variable)
+                pX,
+                (self.kernel, self.inducing_variable),
+                (self.kernel, self.inducing_variable),
             ),
             axis=0,
         )
         jitter = default_jitter()
         Kus = covariances.Kuf(self.inducing_variable, self.kernel, Xnew)
         sigma2 = self.likelihood.variance
-        L = tf.linalg.cholesky(covariances.Kuu(self.inducing_variable, self.kernel, jitter=self.jitter))
+        L = tf.linalg.cholesky(
+            covariances.Kuu(
+                self.inducing_variable, self.kernel, jitter=self.jitter
+            )
+        )
 
         A = tf.linalg.triangular_solve(L, tf.transpose(psi1), lower=True)
         tmp = tf.linalg.triangular_solve(L, psi2, lower=True)
-        AAT = tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True) / sigma2
+        AAT = (
+            tf.linalg.triangular_solve(L, tf.transpose(tmp), lower=True)
+            / sigma2
+        )
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         LB = tf.linalg.cholesky(B)
-        c = tf.linalg.triangular_solve(LB, tf.linalg.matmul(A, Y_data), lower=True) / sigma2
+        c = (
+            tf.linalg.triangular_solve(
+                LB, tf.linalg.matmul(A, Y_data), lower=True
+            )
+            / sigma2
+        )
         tmp1 = tf.linalg.triangular_solve(L, Kus, lower=True)
         tmp2 = tf.linalg.triangular_solve(LB, tmp1, lower=True)
         mean = tf.linalg.matmul(tmp2, c, transpose_a=True)
@@ -252,9 +297,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
 
 
 def check_condition_number(matrix):
-    eig_B = tf.linalg.eigvals(
-        matrix, name=None
-    )
+    eig_B = tf.linalg.eigvals(matrix, name=None)
     eig_real = tf.math.real(eig_B)
     max_eig = tf.math.abs(tf.reduce_max(eig_real))
     min_eig = tf.math.abs(tf.reduce_min(eig_real))

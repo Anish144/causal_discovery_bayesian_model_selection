@@ -19,8 +19,8 @@ import tensorflow as tf
 from collections import namedtuple
 
 
-GPLVM_SCORES = namedtuple('SCORES', 'loss_x loss_y_x loss_y loss_x_y')
-FIT_SCORES = namedtuple('FIT', 'fit_x fit_y_x fit_y fit_x_y')
+GPLVM_SCORES = namedtuple("SCORES", "loss_x loss_y_x loss_y loss_x_y")
+FIT_SCORES = namedtuple("FIT", "fit_x fit_y_x fit_y fit_x_y")
 
 
 def run_optimizer(model, train_dataset, iterations, minibatch_size, adam_lr):
@@ -35,9 +35,11 @@ def run_optimizer(model, train_dataset, iterations, minibatch_size, adam_lr):
     train_iter = iter(train_dataset.batch(minibatch_size))
     training_loss = model.training_loss_closure(train_iter, compile=True)
     optimizer = tf.optimizers.Adam(adam_lr)
+
     @tf.function
     def optimization_step():
         optimizer.minimize(training_loss, model.trainable_variables)
+
     iterator = range(iterations)
     for step in iterator:
         optimization_step()
@@ -53,15 +55,14 @@ def generate_anm_data(sample_size):
     # Sample the cause
     cause = np.random.normal(loc=0.0, scale=1.0, size=(sample_size, 1))
     # Sample the effect
-    kernel = gpflow.kernels.RBF(
-        variance=5,
-        lengthscales=0.5
-    ).K(cause, cause)
+    kernel = gpflow.kernels.RBF(variance=5, lengthscales=0.5).K(cause, cause)
     noise = np.random.normal(loc=0, scale=0.5, size=(sample_size, 1))
-    effect = np.random.multivariate_normal(
-        mean=np.zeros(sample_size),
-        cov=kernel
-    )[:, None] + noise
+    effect = (
+        np.random.multivariate_normal(mean=np.zeros(sample_size), cov=kernel)[
+            :, None
+        ]
+        + noise
+    )
     # Normalise data
     cause = StandardScaler().fit_transform(cause).astype(np.float64)
     effect = StandardScaler().fit_transform(effect).astype(np.float64)
@@ -88,22 +89,24 @@ def train_marginal_model(
     # Set hyperparams
     kernel_variance = 1.0
     likelihood_variance = 1e-5
-    lamda = np.random.uniform(
-        low=10, high=100, size=[3]
-    )
-    kernel_lengthscale = 1.0 / lamda ** 2
+    lamda = np.random.uniform(low=10, high=100, size=[3])
+    kernel_lengthscale = 1.0 / lamda**2
     (
         kernel_lengthscale_1,
         kernel_lengthscale_2,
-        kernel_lengthscale_3
+        kernel_lengthscale_3,
     ) = kernel_lengthscale[:]
 
     # Define kernels
-    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=kernel_lengthscale_1)
+    sq_exp = gpflow.kernels.SquaredExponential(
+        lengthscales=kernel_lengthscale_1
+    )
     sq_exp.variance.assign(kernel_variance)
     matern = gpflow.kernels.Matern32(lengthscales=kernel_lengthscale_2)
     matern.variance.assign(kernel_variance)
-    rquadratic = gpflow.kernels.RationalQuadratic(lengthscales=kernel_lengthscale_3)
+    rquadratic = gpflow.kernels.RationalQuadratic(
+        lengthscales=kernel_lengthscale_3
+    )
     rquadratic.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern, rquadratic])
@@ -127,7 +130,11 @@ def train_marginal_model(
     )
     # Run optimisation
     data_idx = np.arange(x.shape[0])
-    train_dataset = tf.data.Dataset.from_tensor_slices((x, data_idx)).repeat().shuffle(x.shape[0])
+    train_dataset = (
+        tf.data.Dataset.from_tensor_slices((x, data_idx))
+        .repeat()
+        .shuffle(x.shape[0])
+    )
     logf = run_optimizer(
         model=marginal_model,
         train_dataset=train_dataset,
@@ -154,7 +161,7 @@ def train_conditional_model(
     adam_lr: float,
     seed: int,
     causal: bool,
-    mult_pairs: bool
+    mult_pairs: bool,
 ):
     """
     Train a conditional model using a partially observed GPLVM.
@@ -162,14 +169,12 @@ def train_conditional_model(
     # Set hyperparams
     kernel_variance = 1.0
     likelihood_variance = 1e-5
-    lamda = np.random.uniform(
-        low=10, high=100, size=[3]
-    )
-    kernel_lengthscale = 1.0 / lamda ** 2
+    lamda = np.random.uniform(low=10, high=100, size=[3])
+    kernel_lengthscale = 1.0 / lamda**2
     (
         kernel_lengthscale_1,
         kernel_lengthscale_2,
-        kernel_lengthscale_3
+        kernel_lengthscale_3,
     ) = kernel_lengthscale[:]
 
     # Define kernels
@@ -189,12 +194,12 @@ def train_conditional_model(
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel, matern, rquadratic])
 
     Z = np.concatenate(
-            [
-                np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
-                np.random.randn(num_inducing, 1),
-            ],
-            axis=1
-        )
+        [
+            np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
+            np.random.randn(num_inducing, 1),
+        ],
+        axis=1,
+    )
 
     # Define the approx posteroir
     X_mean_init = 0.01 * tf.cast(y, default_float())
@@ -215,7 +220,11 @@ def train_conditional_model(
 
     # Run optimisation
     data_idx = np.arange(y.shape[0])
-    train_dataset = tf.data.Dataset.from_tensor_slices((x, y, data_idx)).repeat().shuffle(y.shape[0])
+    train_dataset = (
+        tf.data.Dataset.from_tensor_slices((x, y, data_idx))
+        .repeat()
+        .shuffle(y.shape[0])
+    )
     logf = run_optimizer(
         model=conditional_model,
         train_dataset=train_dataset,
@@ -235,26 +244,24 @@ def train_conditional_model(
     obs_new = np.linspace(x.min() - 2, x.max() + 1, 1000)[:, None]
     # Sample from the prior
     lower, median, upper, samples = conditional_model.predict_credible_layer(
-        Xnew=obs_new,
-        obs_noise=True
+        Xnew=obs_new, obs_noise=True
     )
-    textstr = 'like_var=%.2f\nelbo=%.2f\n'%(
+    textstr = "like_var=%.2f\nelbo=%.2f\n" % (
         conditional_model.likelihood.variance.numpy(),
-        loss
+        loss,
     )
     plt.text(x.min() - 6, 0, textstr, fontsize=8)
-    plt.scatter(x[:, 0], y[:, 0], c='r')
-    plt.plot(obs_new, median, c='b', alpha=0.2)
+    plt.scatter(x[:, 0], y[:, 0], c="r")
+    plt.plot(obs_new, median, c="b", alpha=0.2)
     plt.fill_between(obs_new[:, 0], upper[:, 0], lower[:, 0], alpha=0.5)
 
     save_dir = Path(f"run_plots/anm")
-    save_dir.mkdir(
-        parents=True, exist_ok=True
-    )
+    save_dir.mkdir(parents=True, exist_ok=True)
     plt.subplots_adjust(left=0.25)
     causal_direction = "causal" if causal else "anticausal"
     plt.savefig(
-        save_dir / f"anm_exp_multpairs_{mult_pairs}_{causal_direction}_seed_{seed}"
+        save_dir
+        / f"anm_exp_multpairs_{mult_pairs}_{causal_direction}_seed_{seed}"
     )
     plt.close()
 
@@ -287,17 +294,18 @@ def anm_main(args, seed):
         num_inducing=num_inducing,
         num_minibatch=num_minibatch,
         num_iterations=num_iterations,
-        adam_lr=adam_lr
+        adam_lr=adam_lr,
     )
     y_x_score, y_x_fit_metric = train_conditional_model(
-        cause, effect,
+        cause,
+        effect,
         num_inducing=num_inducing,
         num_minibatch=num_minibatch,
         num_iterations=num_iterations,
         adam_lr=adam_lr,
         seed=seed,
         mult_pairs=args.mult_pairs,
-        causal=True
+        causal=True,
     )
 
     # Fit Y -> X direction
@@ -309,14 +317,15 @@ def anm_main(args, seed):
         adam_lr=adam_lr,
     )
     x_y_score, x_y_fit_metric = train_conditional_model(
-        effect, cause,
+        effect,
+        cause,
         num_inducing=num_inducing,
         num_minibatch=num_minibatch,
         num_iterations=num_iterations,
         adam_lr=adam_lr,
         seed=seed,
         mult_pairs=args.mult_pairs,
-        causal=False
+        causal=False,
     )
 
     x_to_y_score = x_score + y_x_score
@@ -332,7 +341,9 @@ def anm_main(args, seed):
 
     # Save the scores
     scores = GPLVM_SCORES(x_score, y_x_score, y_score, x_y_score)
-    fits = FIT_SCORES(x_fit_metric, y_x_fit_metric, y_fit_metric, x_y_fit_metric)
+    fits = FIT_SCORES(
+        x_fit_metric, y_x_fit_metric, y_fit_metric, x_y_fit_metric
+    )
     save_dict = {"scores": scores, "fit": fits}
     save_dir = Path(f"{args.work_dir}/results/anm_exp")
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -345,32 +356,50 @@ if __name__ == "__main__":
     np.random.seed(0)
     tf.random.set_seed(0)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    physical_devices = tf.config.experimental.list_physical_devices("GPU")
     if len(physical_devices) > 0:
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--work_dir', '-w', type=str, required=True,
+        "--work_dir",
+        "-w",
+        type=str,
+        required=True,
     )
     parser.add_argument(
-        '--num_inducing', '-ni', type=int, required=True,
-        help="Number of inducing points."
+        "--num_inducing",
+        "-ni",
+        type=int,
+        required=True,
+        help="Number of inducing points.",
     )
     parser.add_argument(
-        '--sample_size', '-ss', type=int, default=1000,
-        help="Sample size for dataset."
+        "--sample_size",
+        "-ss",
+        type=int,
+        default=1000,
+        help="Sample size for dataset.",
     )
     parser.add_argument(
-        '--num_iterations', '-num_it', type=int, default=100000,
-        help="NUmber of maximum iterations."
+        "--num_iterations",
+        "-num_it",
+        type=int,
+        default=100000,
+        help="NUmber of maximum iterations.",
     )
     parser.add_argument(
-        '--minibatch_size', '-mini_size', type=int, default=500,
-        help="Size of a minibatch."
+        "--minibatch_size",
+        "-mini_size",
+        type=int,
+        default=500,
+        help="Size of a minibatch.",
     )
     parser.add_argument(
-        '--mult_pairs', '-mp', action="store_true", default=False,
-        help="Do the experiments on mult pairs."
+        "--mult_pairs",
+        "-mp",
+        action="store_true",
+        default=False,
+        help="Do the experiments on mult pairs.",
     )
     args = parser.parse_args()

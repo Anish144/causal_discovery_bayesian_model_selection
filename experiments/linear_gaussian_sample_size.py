@@ -16,10 +16,11 @@ import tensorflow_probability as tfp
 from gpflow.utilities import positive
 from gpflow.base import Parameter
 from tqdm import trange
+
 tfd = tfp.distributions
 
 
-SS_EXP = namedtuple('SS_EXP', 'x_to_y_list y_to_x_list')
+SS_EXP = namedtuple("SS_EXP", "x_to_y_list y_to_x_list")
 GPFLOW_JITTER = 1e-4
 
 
@@ -34,10 +35,16 @@ class BayesianNormalDE(tf.Module):
     ):
         super(BayesianNormalDE, self).__init__()
         self.x = data
-        self.a_0 = Parameter([a_0_initial], dtype=tf.float64, transform=positive())
-        self.b_0 = Parameter([b_0_initial], dtype=tf.float64, transform=positive())
+        self.a_0 = Parameter(
+            [a_0_initial], dtype=tf.float64, transform=positive()
+        )
+        self.b_0 = Parameter(
+            [b_0_initial], dtype=tf.float64, transform=positive()
+        )
         self.mu_0 = Parameter(mu_0_initial, dtype=tf.float64)
-        self.lambda_0 = Parameter(lambda_0_initial, dtype=tf.float64, transform=positive())
+        self.lambda_0 = Parameter(
+            lambda_0_initial, dtype=tf.float64, transform=positive()
+        )
 
     def calculate_marginal_likelihood(
         self,
@@ -56,15 +63,21 @@ class BayesianNormalDE(tf.Module):
         denom_term_2 = 2 * (self.lambda_0 + N)
         b_n = self.b_0 + diff_mean + (num_term_2 / denom_term_2)
         # Calculate marginal likelihood
-        marginal_likelihood = - (N / 2) * tf.math.log(2 * tf.cast(math.pi, tf.float64))
-        marginal_likelihood += 0.5 * (tf.math.log(self.lambda_0 + 1e-20) - tf.math.log(lambda_n + 1e-20))
+        marginal_likelihood = -(N / 2) * tf.math.log(
+            2 * tf.cast(math.pi, tf.float64)
+        )
+        marginal_likelihood += 0.5 * (
+            tf.math.log(self.lambda_0 + 1e-20) - tf.math.log(lambda_n + 1e-20)
+        )
         marginal_likelihood += self.a_0 * tf.math.log(self.b_0 + 1e-20)
         marginal_likelihood -= a_n * tf.math.log(b_n + 1e-20)
-        marginal_likelihood += tf.math.lgamma(a_n + 1e-20) - tf.math.lgamma(self.a_0 + 1e-20)
+        marginal_likelihood += tf.math.lgamma(a_n + 1e-20) - tf.math.lgamma(
+            self.a_0 + 1e-20
+        )
         return marginal_likelihood
 
     def training_loss(self):
-        return - self.calculate_marginal_likelihood()
+        return -self.calculate_marginal_likelihood()
 
     def return_training_variables(self):
         return (self.a_0, self.b_0, self.mu_0, self.lambda_0)
@@ -77,14 +90,22 @@ class BayesianLinearRegression(tf.Module):
         a_0_initial=1.0,
         b_0_initial=1.0,
         mu_0_initial=[1.0, 1.0],
-        lambda_0_initial=[1.0, 1.0]
+        lambda_0_initial=[1.0, 1.0],
     ) -> None:
         super(BayesianLinearRegression, self).__init__()
         self.x, self.y = data
-        self.a_0 = Parameter([a_0_initial], dtype=tf.float64, transform=positive())
-        self.b_0 = Parameter([b_0_initial], dtype=tf.float64, transform=positive())
-        self.mu_0 = Parameter([[mu_0_initial[0]], [mu_0_initial[1]]], dtype=tf.float64)
-        self.lambda_0 = Parameter(lambda_0_initial, dtype=tf.float64, transform=positive())
+        self.a_0 = Parameter(
+            [a_0_initial], dtype=tf.float64, transform=positive()
+        )
+        self.b_0 = Parameter(
+            [b_0_initial], dtype=tf.float64, transform=positive()
+        )
+        self.mu_0 = Parameter(
+            [[mu_0_initial[0]], [mu_0_initial[1]]], dtype=tf.float64
+        )
+        self.lambda_0 = Parameter(
+            lambda_0_initial, dtype=tf.float64, transform=positive()
+        )
 
     def calculate_marginal_likelihood(
         self,
@@ -92,58 +113,53 @@ class BayesianLinearRegression(tf.Module):
         # Calculate intermediate variables
         N = tf.cast(self.x.shape[0], tf.float64)
         # [2 X 2]
-        design_matrix = tf.linalg.matmul(
-            self.x, self.x, transpose_a=True
-        )
+        design_matrix = tf.linalg.matmul(self.x, self.x, transpose_a=True)
         lambda_0_matrix = tf.linalg.diag(self.lambda_0)
         lambda_n = design_matrix + lambda_0_matrix
         # design_inv = tf.linalg.inv(design_matrix)
         # [2 X 1]
         beta_hat = tf.linalg.solve(
-            design_matrix,
-            tf.linalg.matmul(self.x, self.y, transpose_a=True)
+            design_matrix, tf.linalg.matmul(self.x, self.y, transpose_a=True)
         )
         # Calculate mu_n
         # lambda_n_inv = tf.linalg.inv(lambda_n)
         prior_matmul = tf.linalg.matmul(lambda_0_matrix, self.mu_0)
         design_beta_matmul = tf.linalg.matmul(design_matrix, beta_hat)
-        mu_n = tf.linalg.solve(
-            lambda_n, design_beta_matmul + prior_matmul
-        )
+        mu_n = tf.linalg.solve(lambda_n, design_beta_matmul + prior_matmul)
         # Calculate a_n
         a_n = self.a_0 + N / 2
         # Calculate b_n
         yT_y = tf.linalg.matmul(self.y, self.y, transpose_a=True)
         muT_lambda_mu = tf.linalg.matmul(
-            tf.linalg.matmul(
-                self.mu_0,
-                lambda_0_matrix,
-                transpose_a=True
-            ),
-            self.mu_0
+            tf.linalg.matmul(self.mu_0, lambda_0_matrix, transpose_a=True),
+            self.mu_0,
         )
         muNT_lambdaN_muN = tf.linalg.matmul(
-            tf.linalg.matmul(
-                mu_n,
-                lambda_n,
-                transpose_a=True
-            ),
-            mu_n
+            tf.linalg.matmul(mu_n, lambda_n, transpose_a=True), mu_n
         )
         b_n = self.b_0 + 0.5 * (yT_y + muT_lambda_mu + muNT_lambdaN_muN)
         # Calculate marginal likelihood
-        marginal_likelihood = - (N / 2) * tf.math.log(2 * tf.cast(math.pi, tf.float64))
+        marginal_likelihood = -(N / 2) * tf.math.log(
+            2 * tf.cast(math.pi, tf.float64)
+        )
         tf.debugging.check_numerics(marginal_likelihood, message="step 1")
-        marginal_likelihood += tf.cast(0.5, tf.float64) * (tf.linalg.logdet(lambda_0_matrix + 1e-20) - tf.linalg.logdet(lambda_n + 1e-20))
+        marginal_likelihood += tf.cast(0.5, tf.float64) * (
+            tf.linalg.logdet(lambda_0_matrix + 1e-20)
+            - tf.linalg.logdet(lambda_n + 1e-20)
+        )
         tf.debugging.check_numerics(marginal_likelihood, message="step 2")
-        marginal_likelihood += self.a_0 * tf.math.log(self.b_0 + 1e-20) - a_n * tf.math.log(b_n + 1e-20)
+        marginal_likelihood += self.a_0 * tf.math.log(
+            self.b_0 + 1e-20
+        ) - a_n * tf.math.log(b_n + 1e-20)
         tf.debugging.check_numerics(marginal_likelihood, message="step 3")
-        marginal_likelihood += tf.math.lgamma(a_n + 1e-20) - tf.math.lgamma(self.a_0 + 1e-20)
+        marginal_likelihood += tf.math.lgamma(a_n + 1e-20) - tf.math.lgamma(
+            self.a_0 + 1e-20
+        )
         tf.debugging.check_numerics(marginal_likelihood, message="step 4")
         return marginal_likelihood
 
     def training_loss(self):
-        return - self.calculate_marginal_likelihood()
+        return -self.calculate_marginal_likelihood()
 
     def return_training_variables(self):
         return (self.a_0, self.b_0, self.mu_0, self.lambda_0)
@@ -194,41 +210,42 @@ def train_marginal_model(
         a_0_initial=1.0,
         b_0_initial=1.0,
         mu_0_initial=0.0,
-        lambda_0_initial=1e-5
+        lambda_0_initial=1e-5,
     )
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
-        model.training_loss, model.trainable_variables, options=dict(maxiter=1000)
+        model.training_loss,
+        model.trainable_variables,
+        options=dict(maxiter=1000),
     )
     loss = model.calculate_marginal_likelihood()
     final_loss = loss.numpy()[0]
     return final_loss
 
 
-def train_conditional_gp_model(
-    x,
-    y
-):
+def train_conditional_gp_model(x, y):
     """
     We will train the conditional model by using a linear kernel, and using
     the evidence approximation for other hyperparameters.
     """
     num_inducing = 500 if len(x) > 500 else len(x)
     # We will use a linear kernel with zero mean GP
-    kernel = gpflow.kernels.Linear(
-        variance=tf.cast(1.0, tf.float64)
+    kernel = gpflow.kernels.Linear(variance=tf.cast(1.0, tf.float64))
+    inducing_variable = np.linspace(np.min(x), np.max(x), num_inducing).reshape(
+        -1, 1
     )
-    inducing_variable = np.linspace(np.min(x), np.max(x), num_inducing).reshape(-1, 1)
     m = gpflow.models.SGPR(
         data=(x, y),
         kernel=kernel,
         mean_function=gpflow.mean_functions.Identity(),
         # likelihood=gpflow.likelihoods.Gaussian(),
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     m.likelihood.variance.assign(tf.math.reduce_std(y) ** 2)
     # Train for a short while using adam to reduc
-    train_dataset = tf.data.Dataset.from_tensor_slices((x, y)).repeat().shuffle(x.shape[0])
+    train_dataset = (
+        tf.data.Dataset.from_tensor_slices((x, y)).repeat().shuffle(x.shape[0])
+    )
     run_adam(m, 2000, train_dataset=train_dataset, minibatch_size=x.shape[0])
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
@@ -240,10 +257,7 @@ def train_conditional_gp_model(
     return loss
 
 
-def train_bayesian_linear_regression(
-    x,
-    y
-):
+def train_bayesian_linear_regression(x, y):
     """
     Train Bayesian linear regression with marginal likelihood.
 
@@ -257,11 +271,13 @@ def train_bayesian_linear_regression(
         a_0_initial=1.0,
         b_0_initial=1.0,
         mu_0_initial=[0.0, 0.0],
-        lambda_0_initial=[1e-5, 1e-5]
+        lambda_0_initial=[1e-5, 1e-5],
     )
     opt = gpflow.optimizers.Scipy()
     opt_logs = opt.minimize(
-        model.training_loss, model.trainable_variables, options=dict(maxiter=1000)
+        model.training_loss,
+        model.trainable_variables,
+        options=dict(maxiter=1000),
     )
     loss = model.calculate_marginal_likelihood()
     final_loss = loss.numpy()[0][0]
@@ -292,9 +308,7 @@ def generate_linear_gaussian_data(sample_size):
 
 def linear_gaussian_sample_size_exp(args):
     # Generate the data
-    x, y = generate_linear_gaussian_data(
-        sample_size=args.sample_size
-    )
+    x, y = generate_linear_gaussian_data(sample_size=args.sample_size)
     # X -> Y
     x_loss = train_marginal_model(x)
     y_x_loss = train_bayesian_linear_regression(x, y)
@@ -304,10 +318,7 @@ def linear_gaussian_sample_size_exp(args):
     # Full losses
     x_to_y_loss = x_loss + y_x_loss
     y_to_x_loss = y_loss + x_y_loss
-    tf.print(
-        f"X -> Y: {x_to_y_loss}",
-        f"Y -> X: {y_to_x_loss}"
-    )
+    tf.print(f"X -> Y: {x_to_y_loss}", f"Y -> X: {y_to_x_loss}")
     if x_to_y_loss - y_to_x_loss > 1e-6:
         tf.print(f"Correct! Difference is {x_to_y_loss - y_to_x_loss} \n")
     elif y_to_x_loss - x_to_y_loss > 1e-6:
@@ -333,9 +344,7 @@ def vary_sample_sizes(args, sample_size_list):
     ans_dict = {}
     for ss in sample_size_list:
         args.sample_size = ss
-        x_to_y_list, y_to_x_list = repeat_experiment(
-            args, args.repeat_times
-        )
+        x_to_y_list, y_to_x_list = repeat_experiment(args, args.repeat_times)
         results = SS_EXP(x_to_y_list, y_to_x_list)
         ans_dict[ss] = results
     # Save results
@@ -352,22 +361,30 @@ if __name__ == "__main__":
 
     # tf.config.run_functions_eagerly(True)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    physical_devices = tf.config.experimental.list_physical_devices("GPU")
     if len(physical_devices) > 0:
         tf.config.experimental.set_memory_growth(physical_devices[0], True)
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--work_dir', '-w', type=str,
-        default="/vol/bitbucket/ad6013/Research/gp-causal"
+        "--work_dir",
+        "-w",
+        type=str,
+        default="/vol/bitbucket/ad6013/Research/gp-causal",
     )
     parser.add_argument(
-        '--sample_size', '-ss', type=int, default=1000,
-        help="Sample size for dataset."
+        "--sample_size",
+        "-ss",
+        type=int,
+        default=1000,
+        help="Sample size for dataset.",
     )
     parser.add_argument(
-        '--repeat_times', '-rt', type=int, default=50,
-        help="Number of times an experiment is repeated."
+        "--repeat_times",
+        "-rt",
+        type=int,
+        default=50,
+        help="Number of times an experiment is repeated.",
     )
     args = parser.parse_args()
     vary_sample_sizes(args, np.linspace(10000, 10000, 1))

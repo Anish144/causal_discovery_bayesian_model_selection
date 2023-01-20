@@ -37,7 +37,9 @@ def train_marginal_model(
 ):
     latent_dim = 1
     # Define kernel
-    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
+    sq_exp = gpflow.kernels.SquaredExponential(
+        lengthscales=[kernel_lengthscale]
+    )
     sq_exp.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
@@ -59,7 +61,7 @@ def train_marginal_model(
         X_data_var=X_var_init,
         X_prior_var=x_prior_var,
         jitter=jitter,
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     marginal_model.likelihood.variance = Parameter(
         likelihood_variance, transform=positive(1e-6)
@@ -68,6 +70,7 @@ def train_marginal_model(
 
     adam_vars = marginal_model.trainable_variables
     adam_opt = tf.optimizers.Adam(0.1)
+
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
@@ -80,16 +83,18 @@ def train_marginal_model(
             optimisation_step()
             if epoch % log_freq == 0:
                 pbar.set_description(f"ELBO {- marginal_model.elbo()}")
-            losses.append(- marginal_model.elbo())
+            losses.append(-marginal_model.elbo())
             if epoch > 101:
                 losses.pop(0)
-            if epoch > 1000 and np.abs(np.mean(losses[0:50]) - np.mean(losses[50:100])) < np.std(losses):
+            if epoch > 1000 and np.abs(
+                np.mean(losses[0:50]) - np.mean(losses[50:100])
+            ) < np.std(losses):
                 print("BREAKING!")
                 break
 
-    tf.print("ELBO:", - marginal_model.elbo())
+    tf.print("ELBO:", -marginal_model.elbo())
 
-    loss = - marginal_model.elbo()
+    loss = -marginal_model.elbo()
 
     if plot_fit:
         # Plot the fit to see if everything is ok
@@ -98,29 +103,31 @@ def train_marginal_model(
         pred_y_mean, pred_y_var = marginal_model.predict_y(
             Xnew=obs_new,
         )
-        textstr = 'kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            marginal_model.kernel.kernels[0].lengthscales.numpy(),
-            marginal_model.kernel.kernels[0].variance.numpy(),
-            marginal_model.likelihood.variance.numpy(),
-            - marginal_model.elbo().numpy()
+        textstr = (
+            "kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n"
+            % (
+                marginal_model.kernel.kernels[0].lengthscales.numpy(),
+                marginal_model.kernel.kernels[0].variance.numpy(),
+                marginal_model.likelihood.variance.numpy(),
+                -marginal_model.elbo().numpy(),
+            )
         )
         plt.text(-8, 0, textstr, fontsize=8)
-        plt.scatter(marginal_model.X_data_mean, y, c='r')
-        plt.plot(obs_new, pred_y_mean, c='b', alpha=0.25)
+        plt.scatter(marginal_model.X_data_mean, y, c="r")
+        plt.plot(obs_new, pred_y_mean, c="b", alpha=0.25)
         plt.fill_between(
             obs_new[:, 0],
             (pred_y_mean + 2 * np.sqrt(pred_y_var))[:, 0],
-            (pred_y_mean - 2 * np.sqrt(pred_y_var))[:,0],
-            alpha=0.5
+            (pred_y_mean - 2 * np.sqrt(pred_y_var))[:, 0],
+            alpha=0.5,
         )
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
         )
         plt.close()
     else:
@@ -146,7 +153,9 @@ def train_conditional_model(
     """
     Train a conditional model using a partially observed GPLVM.
     """
-    tf.print(f"Init: ker_len: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}")
+    tf.print(
+        f"Init: ker_len: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}"
+    )
     latent_dim = 1
 
     # if not using a GP, put in initial values for hyperparams
@@ -169,7 +178,7 @@ def train_conditional_model(
                 np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
                 np.random.randn(num_inducing, 1),
             ],
-            axis=1
+            axis=1,
         )
     )
 
@@ -182,7 +191,7 @@ def train_conditional_model(
         X_data_var=X_var_init,
         X_prior_var=x_prior_var,
         jitter=jitter,
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     conditional_model.likelihood.variance = Parameter(
         likelihood_variance, transform=positive(lower=1e-6)
@@ -192,6 +201,7 @@ def train_conditional_model(
 
     adam_vars = conditional_model.trainable_variables
     adam_opt = tf.optimizers.Adam(0.1)
+
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
@@ -204,16 +214,18 @@ def train_conditional_model(
             optimisation_step()
             if epoch % log_freq == 0:
                 pbar.set_description(f"ELBO {- conditional_model.elbo()}")
-            losses.append(- conditional_model.elbo())
+            losses.append(-conditional_model.elbo())
             if epoch > 101:
                 losses.pop(0)
-            if epoch > 1000 and np.abs(np.mean(losses[0:50]) - np.mean(losses[50:100])) < np.std(losses):
+            if epoch > 1000 and np.abs(
+                np.mean(losses[0:50]) - np.mean(losses[50:100])
+            ) < np.std(losses):
                 print("BREAKING!")
                 break
 
-    tf.print("ELBO:", - conditional_model.elbo())
+    tf.print("ELBO:", -conditional_model.elbo())
 
-    loss = - conditional_model.elbo()
+    loss = -conditional_model.elbo()
 
     if plot_fit:
         # Plot the fit to see if everything is ok
@@ -223,36 +235,36 @@ def train_conditional_model(
             [obs_new.shape[0], latent_dim]
         )
         Xnew = tf.cast(Xnew, dtype=default_float())
-        Xnew = tf.concat(
-            [obs_new, Xnew], axis=1
-        )
+        Xnew = tf.concat([obs_new, Xnew], axis=1)
         pred_f_mean, pred_f_var = conditional_model.predict_y(
             Xnew=Xnew,
         )
-        textstr = 'kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            conditional_model.kernel.kernels[0].lengthscales.numpy()[0],
-            conditional_model.kernel.kernels[0].lengthscales.numpy()[1],
-            conditional_model.kernel.kernels[0].variance.numpy(),
-            conditional_model.likelihood.variance.numpy(),
-            - conditional_model.elbo().numpy()
+        textstr = (
+            "kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n"
+            % (
+                conditional_model.kernel.kernels[0].lengthscales.numpy()[0],
+                conditional_model.kernel.kernels[0].lengthscales.numpy()[1],
+                conditional_model.kernel.kernels[0].variance.numpy(),
+                conditional_model.likelihood.variance.numpy(),
+                -conditional_model.elbo().numpy(),
+            )
         )
         plt.text(x.min() - 6, 0, textstr, fontsize=8)
-        plt.scatter(x, y, c='r')
-        plt.plot(obs_new, pred_f_mean, c='b', alpha=0.25)
+        plt.scatter(x, y, c="r")
+        plt.plot(obs_new, pred_f_mean, c="b", alpha=0.25)
         plt.fill_between(
             obs_new[:, 0],
             (pred_f_mean + 2 * np.sqrt(pred_f_var))[:, 0],
-            (pred_f_mean - 2 * np.sqrt(pred_f_var))[:,0],
-            alpha=0.5
+            (pred_f_mean - 2 * np.sqrt(pred_f_var))[:, 0],
+            alpha=0.5,
         )
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
         )
         plt.close()
     else:
@@ -261,8 +273,12 @@ def train_conditional_model(
     return loss
 
 
-def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name):
-    num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+def causal_score_gplvm(
+    args, x, y, run_number, restart_number, causal, save_name
+):
+    num_inducing = (
+        args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    )
     # Dynamically reduce the jitter if there is an error
     # Sample hyperparams
     kernel_variance = 1
@@ -340,15 +356,17 @@ def min_causal_score_gplvm_adam(args, x, y, weight, target):
     # Find data index to start and end the runs on
     data_start_idx = args.data_start
     data_end_idx = args.data_end if args.data_end < len(x) else len(x)
-    save_name = f"fullscore-{args.data}-gplvm_adam-reinit{args.random_restarts}-numind{args.num_inducing}" \
-                f"_start:{data_start_idx}_end:{data_end_idx}"
-    save_path = Path(f'{args.work_dir}/results/{save_name}.p')
+    save_name = (
+        f"fullscore-{args.data}-gplvm_adam-reinit{args.random_restarts}-numind{args.num_inducing}"
+        f"_start:{data_start_idx}_end:{data_end_idx}"
+    )
+    save_path = Path(f"{args.work_dir}/results/{save_name}.p")
 
     if save_path.is_file():
         with open(save_path, "rb") as f:
             checkpoint = pickle.load(f)
-        correct_idx = checkpoint['correct_idx']
-        wrong_idx = checkpoint['wrong_idx']
+        correct_idx = checkpoint["correct_idx"]
+        wrong_idx = checkpoint["wrong_idx"]
         scores = checkpoint["scores"]
         starting_run_number = checkpoint["run_number"]
     else:
@@ -357,13 +375,18 @@ def min_causal_score_gplvm_adam(args, x, y, weight, target):
         scores = []
         starting_run_number = data_start_idx
 
-    for i in tqdm(range(starting_run_number, data_end_idx), desc="Epochs", leave=True, position=0):
+    for i in tqdm(
+        range(starting_run_number, data_end_idx),
+        desc="Epochs",
+        leave=True,
+        position=0,
+    ):
         # Find the target
         run_target = target[i]
         # Ignore the high dim
         if x[i].shape[-1] > 1:
             continue
-        tf.print(f'\n Run: {i}')
+        tf.print(f"\n Run: {i}")
 
         # Normalise the data
         x_train = StandardScaler().fit_transform(x[i]).astype(np.float64)
@@ -378,38 +401,35 @@ def min_causal_score_gplvm_adam(args, x, y, weight, target):
             np.random.seed(seed)
             tf.random.set_seed(seed)
             tf.print(f"\n Random restart: {j}")
-            (
-                loss_x,
-                loss_y_x,
-
-            ) = causal_score_gplvm(
+            (loss_x, loss_y_x,) = causal_score_gplvm(
                 args=args,
                 x=x_train,
                 y=y_train,
                 run_number=i,
                 restart_number=j,
                 causal=True,
-                save_name=save_name
+                save_name=save_name,
             )
-            (
-                loss_y,
-                loss_x_y,
-
-            ) = causal_score_gplvm(
+            (loss_y, loss_x_y,) = causal_score_gplvm(
                 args=args,
                 x=y_train,
                 y=x_train,
                 run_number=i,
                 restart_number=j,
                 causal=False,
-                save_name=save_name
+                save_name=save_name,
             )
             if loss_x is not None:
                 rr_loss_x.append(loss_x)
                 rr_loss_y_x.append(loss_y_x)
                 rr_loss_y.append(loss_y)
                 rr_loss_x_y.append(loss_x_y)
-                tf.print(loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy())
+                tf.print(
+                    loss_x.numpy(),
+                    loss_y_x.numpy(),
+                    loss_y.numpy(),
+                    loss_x_y.numpy(),
+                )
         # Need to find the best losses from the list
         # Calculate losses
         if args.debug:
@@ -430,15 +450,20 @@ def min_causal_score_gplvm_adam(args, x, y, weight, target):
                 correct_idx.append(i)
             else:
                 wrong_idx.append(i)
-        scores.append(((min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()), (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy())))
+        scores.append(
+            (
+                (min(rr_loss_x).numpy(), min(rr_loss_y_x).numpy()),
+                (min(rr_loss_y).numpy(), min(rr_loss_x_y).numpy()),
+            )
+        )
         tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
         # Save checkpoint
-        with open(save_path, 'wb') as f:
+        with open(save_path, "wb") as f:
             save_dict = {
                 "correct_idx": correct_idx,
                 "wrong_idx": wrong_idx,
                 "weight": weight,
                 "scores": scores,
-                "run_number": i + 1
+                "run_number": i + 1,
             }
             pickle.dump(save_dict, f)

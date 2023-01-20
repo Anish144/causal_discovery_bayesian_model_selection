@@ -18,9 +18,7 @@ def sample_latent(size: int):
 
 
 def generate_cause(
-    size: int,
-    likelihood_noise: float,
-    kernel_gamma_params: tuple
+    size: int, likelihood_noise: float, kernel_gamma_params: tuple
 ):
     """
     Generate the cause.
@@ -43,9 +41,8 @@ def generate_cause(
     cov = kernel.K(latent_w)
     mean = latent_w[:, 0]
     X = np.random.multivariate_normal(
-            mean=mean,
-            cov=cov + likelihood_noise * np.eye(size)
-        )
+        mean=mean, cov=cov + likelihood_noise * np.eye(size)
+    )
     X = X[:, None]
     return X
 
@@ -55,7 +52,7 @@ def generate_effect(
     size: int,
     likelihood_noise: float,
     kernel_gamma_params_1: tuple,
-    kernel_gamma_params_2: tuple
+    kernel_gamma_params_2: tuple,
 ):
     # Get the kernels ready
     kernel_lengthscale_1 = np.random.gamma(
@@ -73,18 +70,14 @@ def generate_effect(
 
     # Sample latents
     latent = sample_latent(size)
-    full_input = np.concatenate(
-        (cause, latent),
-        axis=1
-    )
+    full_input = np.concatenate((cause, latent), axis=1)
 
     # Sample from a GP with identity mean function
     cov = kernel.K(full_input)
     mean = cause[:, 0]
     Y = np.random.multivariate_normal(
-            mean=mean,
-            cov=cov + np.eye(size) * likelihood_noise
-        )
+        mean=mean, cov=cov + np.eye(size) * likelihood_noise
+    )
     Y = Y[:, None]
     return Y
 
@@ -96,36 +89,22 @@ def generate_dataset():
 
 if __name__ == "__main__":
     # Save arguements
-    save_path = '/vol/bitbucket/ad6013/Research/gp-causal/data/gplvm_pairs/files'
+    save_path = (
+        "/vol/bitbucket/ad6013/Research/gp-causal/data/gplvm_pairs/files"
+    )
     # Generate 100 datasets
     size = 1000
     full_dataset = []
     all_targets = []
     for i in range(100):
-        cause = generate_cause(
-            size,
-            1e-4,
-            (1, 0.5)
-        )
-        effect = generate_effect(
-            cause,
-            size,
-            1e-4,
-            (1, 1),
-            (2, 5)
-        )
+        cause = generate_cause(size, 1e-4, (1, 0.5))
+        effect = generate_effect(cause, size, 1e-4, (1, 1), (2, 5))
         if i < 50:
-            dataset = np.concatenate(
-                (cause, effect),
-                axis=1
-            )
+            dataset = np.concatenate((cause, effect), axis=1)
             target = 1.0
         else:
-            dataset = np.concatenate(
-                (effect, cause),
-                axis=1
-            )
-            target = - 1.0
+            dataset = np.concatenate((effect, cause), axis=1)
+            target = -1.0
         full_dataset.append(dataset)
         all_targets.append(target)
     final_dataset = np.stack(full_dataset, axis=0)

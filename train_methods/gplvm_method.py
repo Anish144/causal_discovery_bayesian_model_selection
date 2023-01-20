@@ -25,13 +25,10 @@ from collections import namedtuple
 from utils import return_all_scores, return_best_causal_scores, get_correct
 
 
-GPLVM_SCORES = namedtuple('GPLVM_SCORES', 'loss_x loss_y_x loss_y loss_x_y')
+GPLVM_SCORES = namedtuple("GPLVM_SCORES", "loss_x loss_y_x loss_y loss_x_y")
 
 
-def get_marginal_noise_model_score(
-    y: np.ndarray,
-    num_inducing: int
-):
+def get_marginal_noise_model_score(y: np.ndarray, num_inducing: int):
     # Need to find the ELBO for a noise model
     linear_kernel = gpflow.kernels.Linear(variance=1e-20)
     kernel = linear_kernel
@@ -55,7 +52,7 @@ def get_marginal_noise_model_score(
         X_data_var=X_var_init,
         X_prior_var=x_prior_var,
         jitter=1e-6,
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     marginal_model.likelihood.variance = Parameter(
         1.0, transform=positive(1e-6)
@@ -63,7 +60,7 @@ def get_marginal_noise_model_score(
     # Train everything
     gpflow.utilities.set_trainable(marginal_model.kernel, True)
     gpflow.utilities.set_trainable(marginal_model.likelihood, True)
-    gpflow.utilities.set_trainable(marginal_model.X_data_mean , True)
+    gpflow.utilities.set_trainable(marginal_model.X_data_mean, True)
     gpflow.utilities.set_trainable(marginal_model.X_data_var, True)
     gpflow.utilities.set_trainable(marginal_model.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
@@ -72,22 +69,20 @@ def get_marginal_noise_model_score(
         marginal_model.trainable_variables,
         options=dict(maxiter=10000),
     )
-    loss = - marginal_model.elbo()
+    loss = -marginal_model.elbo()
     return loss
 
 
 def get_conditional_noise_model_score(
-    x: np.ndarray,
-    y: np.ndarray,
-    num_inducing: int
+    x: np.ndarray, y: np.ndarray, num_inducing: int
 ):
     # Need to find the ELBO for a noise model
     linear_kernel = gpflow.kernels.Linear(variance=1)
     kernel = linear_kernel
 
     Z = gpflow.inducing_variables.InducingPoints(
-            np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
-        )
+        np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
+    )
     inducing_variable = Z
 
     reg_gp_model = gpflow.models.SGPR(
@@ -102,7 +97,7 @@ def get_conditional_noise_model_score(
         reg_gp_model.trainable_variables,
         options=dict(maxiter=200000),
     )
-    loss = - reg_gp_model.elbo()
+    loss = -reg_gp_model.elbo()
     return loss
 
 
@@ -122,7 +117,9 @@ def train_marginal_model(
 ):
     latent_dim = 1
     # Define kernel
-    sq_exp = gpflow.kernels.SquaredExponential(lengthscales=[kernel_lengthscale])
+    sq_exp = gpflow.kernels.SquaredExponential(
+        lengthscales=[kernel_lengthscale]
+    )
     sq_exp.variance.assign(kernel_variance)
     linear_kernel = gpflow.kernels.Linear(variance=kernel_variance)
     kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
@@ -144,35 +141,36 @@ def train_marginal_model(
         X_data_var=X_var_init,
         X_prior_var=x_prior_var,
         jitter=jitter,
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     marginal_model.likelihood.variance = Parameter(
         likelihood_variance, transform=positive(1e-6)
     )
 
     # We will train the Adam until the elbo gets below the noise model score
-    noise_elbo = get_marginal_noise_model_score(
-        y=y,
-        num_inducing=num_inducing
-    )
+    noise_elbo = get_marginal_noise_model_score(y=y, num_inducing=num_inducing)
     loss_fn = marginal_model.training_loss_closure()
     adam_vars = marginal_model.trainable_variables
     adam_opt = tf.optimizers.Adam(0.05)
+
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
+
     epochs = int(5e3)
     for epoch in range(epochs):
         optimisation_step()
-        if - marginal_model.elbo() < noise_elbo:
-            print(f"Breaking as {- marginal_model.elbo()} is less than {noise_elbo}")
+        if -marginal_model.elbo() < noise_elbo:
+            print(
+                f"Breaking as {- marginal_model.elbo()} is less than {noise_elbo}"
+            )
             break
 
     # Train everything
     tf.print("Training everything")
     gpflow.utilities.set_trainable(marginal_model.kernel, True)
     gpflow.utilities.set_trainable(marginal_model.likelihood, True)
-    gpflow.utilities.set_trainable(marginal_model.X_data_mean , True)
+    gpflow.utilities.set_trainable(marginal_model.X_data_mean, True)
     gpflow.utilities.set_trainable(marginal_model.X_data_var, True)
     gpflow.utilities.set_trainable(marginal_model.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
@@ -181,9 +179,9 @@ def train_marginal_model(
         marginal_model.trainable_variables,
         options=dict(maxiter=10000),
     )
-    tf.print("ELBO:", - marginal_model.elbo())
+    tf.print("ELBO:", -marginal_model.elbo())
 
-    loss = - marginal_model.elbo()
+    loss = -marginal_model.elbo()
 
     if plot_fit:
         # Plot the fit to see if everything is ok
@@ -192,29 +190,31 @@ def train_marginal_model(
         pred_y_mean, pred_y_var = marginal_model.predict_y(
             Xnew=obs_new,
         )
-        textstr = 'kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            marginal_model.kernel.kernels[0].lengthscales.numpy(),
-            marginal_model.kernel.kernels[0].variance.numpy(),
-            marginal_model.likelihood.variance.numpy(),
-            - marginal_model.elbo().numpy()
+        textstr = (
+            "kern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n"
+            % (
+                marginal_model.kernel.kernels[0].lengthscales.numpy(),
+                marginal_model.kernel.kernels[0].variance.numpy(),
+                marginal_model.likelihood.variance.numpy(),
+                -marginal_model.elbo().numpy(),
+            )
         )
         plt.text(-8, 0, textstr, fontsize=8)
-        plt.scatter(marginal_model.X_data_mean, y, c='r')
-        plt.plot(obs_new, pred_y_mean, c='b', alpha=0.25)
+        plt.scatter(marginal_model.X_data_mean, y, c="r")
+        plt.plot(obs_new, pred_y_mean, c="b", alpha=0.25)
         plt.fill_between(
             obs_new[:, 0],
             (pred_y_mean + 2 * np.sqrt(pred_y_var))[:, 0],
-            (pred_y_mean - 2 * np.sqrt(pred_y_var))[:,0],
-            alpha=0.5
+            (pred_y_mean - 2 * np.sqrt(pred_y_var))[:, 0],
+            alpha=0.5,
         )
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_marginal"
         )
         plt.close()
     else:
@@ -240,7 +240,9 @@ def train_conditional_model(
     """
     Train a conditional model using a partially observed GPLVM.
     """
-    tf.print(f"Init: ker_len: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}")
+    tf.print(
+        f"Init: ker_len: {kernel_lengthscale}, ker_var: {kernel_variance}, like_var: {likelihood_variance}"
+    )
     latent_dim = 1
 
     # Flip coin to see if we should initialise with a GP
@@ -261,26 +263,34 @@ def train_conditional_model(
         sq_exp.variance.assign(kernel_variance)
         kernel = gpflow.kernels.Sum([sq_exp, linear_kernel])
         # Define moedl
-        reg_gp_model = gpflow.models.GPR(data=(x, y), kernel=kernel, mean_function=None)
+        reg_gp_model = gpflow.models.GPR(
+            data=(x, y), kernel=kernel, mean_function=None
+        )
         reg_gp_model.likelihood.variance = Parameter(
             likelihood_variance, transform=positive(lower=1e-6)
         )
         # Fit model
         opt = gpflow.optimizers.Scipy()
         opt_logs = opt.minimize(
-            reg_gp_model.training_loss, reg_gp_model.trainable_variables, options=dict(maxiter=10000)
+            reg_gp_model.training_loss,
+            reg_gp_model.trainable_variables,
+            options=dict(maxiter=10000),
         )
-        found_lengthscale = float(reg_gp_model.kernel.kernels[0].lengthscales.numpy())
+        found_lengthscale = float(
+            reg_gp_model.kernel.kernels[0].lengthscales.numpy()
+        )
         found_lik_var = reg_gp_model.likelihood.variance.numpy()
         found_kern_var_0 = reg_gp_model.kernel.kernels[0].variance.numpy()
         found_kern_var_1 = reg_gp_model.kernel.kernels[1].variance.numpy()
         tf.print(
-            f"Found: ker_len: {found_lengthscale}, ker_var: {found_kern_var_0}, like_var: {found_lik_var}")
+            f"Found: ker_len: {found_lengthscale}, ker_var: {found_kern_var_0}, like_var: {found_lik_var}"
+        )
 
         # Put in new values of hyperparams
         X_mean_init = y - reg_gp_model.predict_y(x)[0]
         sq_exp = gpflow.kernels.SquaredExponential(
-            lengthscales=[found_lengthscale + 1e-20] + [found_lengthscale / 3 + 1e-20]
+            lengthscales=[found_lengthscale + 1e-20]
+            + [found_lengthscale / 3 + 1e-20]
         )
         sq_exp.variance.assign(found_kern_var_0 + 1e-20)
         linear_kernel = gpflow.kernels.Linear(variance=found_kern_var_1 + 1e-20)
@@ -305,7 +315,7 @@ def train_conditional_model(
                 np.linspace(x.min(), x.max(), num_inducing).reshape(-1, 1),
                 np.random.randn(num_inducing, 1),
             ],
-            axis=1
+            axis=1,
         )
     )
 
@@ -318,7 +328,7 @@ def train_conditional_model(
         X_data_var=X_var_init,
         X_prior_var=x_prior_var,
         jitter=jitter,
-        inducing_variable=inducing_variable
+        inducing_variable=inducing_variable,
     )
     if use_gp:
         conditional_model.likelihood.variance = Parameter(
@@ -331,28 +341,30 @@ def train_conditional_model(
 
     # We will train the Adam until the elbo gets below the noise model score
     noise_elbo = get_conditional_noise_model_score(
-        x=x,
-        y=y,
-        num_inducing=num_inducing
+        x=x, y=y, num_inducing=num_inducing
     )
     loss_fn = conditional_model.training_loss_closure()
     adam_vars = conditional_model.trainable_variables
     adam_opt = tf.optimizers.Adam(0.05)
+
     @tf.function
     def optimisation_step():
         adam_opt.minimize(loss_fn, adam_vars)
+
     epochs = int(5e3)
     for epoch in range(epochs):
         optimisation_step()
-        if - conditional_model.elbo() < noise_elbo:
-            print(f"Breaking as {- conditional_model.elbo()} is less than {noise_elbo}")
+        if -conditional_model.elbo() < noise_elbo:
+            print(
+                f"Breaking as {- conditional_model.elbo()} is less than {noise_elbo}"
+            )
             break
 
     # Train everything after Adam
     tf.print("Training everything")
     gpflow.utilities.set_trainable(conditional_model.kernel, True)
     gpflow.utilities.set_trainable(conditional_model.likelihood, True)
-    gpflow.utilities.set_trainable(conditional_model.X_data_mean , True)
+    gpflow.utilities.set_trainable(conditional_model.X_data_mean, True)
     gpflow.utilities.set_trainable(conditional_model.X_data_var, True)
     gpflow.utilities.set_trainable(conditional_model.inducing_variable, True)
     opt = gpflow.optimizers.Scipy()
@@ -361,9 +373,9 @@ def train_conditional_model(
         conditional_model.trainable_variables,
         options=dict(maxiter=10000),
     )
-    tf.print("ELBO:", - conditional_model.elbo())
+    tf.print("ELBO:", -conditional_model.elbo())
 
-    loss = - conditional_model.elbo()
+    loss = -conditional_model.elbo()
 
     if plot_fit:
         # Plot the fit to see if everything is ok
@@ -373,36 +385,36 @@ def train_conditional_model(
             [obs_new.shape[0], latent_dim]
         )
         Xnew = tf.cast(Xnew, dtype=default_float())
-        Xnew = tf.concat(
-            [obs_new, Xnew], axis=1
-        )
+        Xnew = tf.concat([obs_new, Xnew], axis=1)
         pred_f_mean, pred_f_var = conditional_model.predict_y(
             Xnew=Xnew,
         )
-        textstr = 'kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n'%(
-            conditional_model.kernel.kernels[0].lengthscales.numpy()[0],
-            conditional_model.kernel.kernels[0].lengthscales.numpy()[1],
-            conditional_model.kernel.kernels[0].variance.numpy(),
-            conditional_model.likelihood.variance.numpy(),
-            - conditional_model.elbo().numpy()
+        textstr = (
+            "kern_len_obs=%.2f\nkern_len_lat=%.2f\nkern_var=%.2f\nlike_var=%.2f\nelbo=%.2f\n"
+            % (
+                conditional_model.kernel.kernels[0].lengthscales.numpy()[0],
+                conditional_model.kernel.kernels[0].lengthscales.numpy()[1],
+                conditional_model.kernel.kernels[0].variance.numpy(),
+                conditional_model.likelihood.variance.numpy(),
+                -conditional_model.elbo().numpy(),
+            )
         )
         plt.text(x.min() - 6, 0, textstr, fontsize=8)
-        plt.scatter(x, y, c='r')
-        plt.plot(obs_new, pred_f_mean, c='b', alpha=0.25)
+        plt.scatter(x, y, c="r")
+        plt.plot(obs_new, pred_f_mean, c="b", alpha=0.25)
         plt.fill_between(
             obs_new[:, 0],
             (pred_f_mean + 2 * np.sqrt(pred_f_var))[:, 0],
-            (pred_f_mean - 2 * np.sqrt(pred_f_var))[:,0],
-            alpha=0.5
+            (pred_f_mean - 2 * np.sqrt(pred_f_var))[:, 0],
+            alpha=0.5,
         )
         save_dir = Path(f"{work_dir}/run_plots/{save_name}")
-        save_dir.mkdir(
-            parents=True, exist_ok=True
-        )
+        save_dir.mkdir(parents=True, exist_ok=True)
         plt.subplots_adjust(left=0.25)
         causal_direction = "causal" if causal else "anticausal"
         plt.savefig(
-            save_dir / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
+            save_dir
+            / f"run_{run_number}_rr_{random_restart_number}_{causal_direction}_conditional"
         )
         plt.close()
     else:
@@ -411,8 +423,12 @@ def train_conditional_model(
     return loss
 
 
-def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name):
-    num_inducing = args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+def causal_score_gplvm(
+    args, x, y, run_number, restart_number, causal, save_name
+):
+    num_inducing = (
+        args.num_inducing if x.shape[0] > args.num_inducing else x.shape[0]
+    )
     # Dynamically reduce the jitter if there is an error
     # Sample hyperparams
     kernel_variance = 1
@@ -420,14 +436,10 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
     finish = 0
     loss_x = None
     # Likelihood variance
-    kappa = np.random.uniform(
-        low=10.0, high=100, size=[1]
-    )
-    likelihood_variance = 1. / (kappa ** 2)
+    kappa = np.random.uniform(low=10.0, high=100, size=[1])
+    likelihood_variance = 1.0 / (kappa**2)
     # Kernel lengthscale
-    lamda = np.random.uniform(
-        low=1, high=100, size=[1]
-    )
+    lamda = np.random.uniform(low=1, high=100, size=[1])
     kernel_lengthscale = 1.0 / lamda
     while finish == 0:
         try:
@@ -458,14 +470,10 @@ def causal_score_gplvm(args, x, y, run_number, restart_number, causal, save_name
     finish = 0
     kernel_variance = 1
     # Likelihood variance
-    kappa = np.random.uniform(
-        low=10.0, high=100, size=[1]
-    )
-    likelihood_variance = 1. / (kappa ** 2)
+    kappa = np.random.uniform(low=10.0, high=100, size=[1])
+    likelihood_variance = 1.0 / (kappa**2)
     # Kernel lengthscale
-    lamda = np.random.uniform(
-        low=1.0, high=100, size=[1]
-    )
+    lamda = np.random.uniform(low=1.0, high=100, size=[1])
     kernel_lengthscale = 1.0 / lamda
     while finish == 0:
         try:
@@ -502,18 +510,20 @@ def min_causal_score_gplvm(args, x, y, weight, target):
     # Find data index to start and end the runs on
     data_start_idx = args.data_start
     data_end_idx = args.data_end if args.data_end < len(x) else len(x)
-    save_name = f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}" \
-                f"_start:{data_start_idx}_end:{data_end_idx}"
-    save_path = Path(f'{args.work_dir}/results/{save_name}.p')
+    save_name = (
+        f"fullscore-{args.data}-gplvm-reinit{args.random_restarts}-numind{args.num_inducing}"
+        f"_start:{data_start_idx}_end:{data_end_idx}"
+    )
+    save_path = Path(f"{args.work_dir}/results/{save_name}.p")
     starting_run_number = data_start_idx
 
     if save_path.is_file():
         with open(save_path, "rb") as f:
             checkpoint = dill.load(f)
-        correct_idx = checkpoint['correct_idx']
-        wrong_idx = checkpoint['wrong_idx']
+        correct_idx = checkpoint["correct_idx"]
+        wrong_idx = checkpoint["wrong_idx"]
         final_scores = checkpoint["final_scores"]
-        best_scores = checkpoint['best_scores']
+        best_scores = checkpoint["best_scores"]
     else:
         correct_idx = []
         wrong_idx = []
@@ -522,8 +532,15 @@ def min_causal_score_gplvm(args, x, y, weight, target):
         # number that will point to a dictionary of random restarts
         final_scores = defaultdict(dict)
 
-    for j in tqdm(range(args.random_restarts), desc="RR", leave=True, position=0):
-        for i in tqdm(range(starting_run_number, data_end_idx), desc="Runs", leave=True, position=0):
+    for j in tqdm(
+        range(args.random_restarts), desc="RR", leave=True, position=0
+    ):
+        for i in tqdm(
+            range(starting_run_number, data_end_idx),
+            desc="Runs",
+            leave=True,
+            position=0,
+        ):
             # Check if this random restart already has been done for this run
             # Skip if it has...
             curr_run_rr_idx = list(final_scores[i].keys())
@@ -536,7 +553,7 @@ def min_causal_score_gplvm(args, x, y, weight, target):
             # Ignore the high dim
             if x[i].shape[-1] > 1:
                 continue
-            tf.print(f'\n Run: {i}')
+            tf.print(f"\n Run: {i}")
 
             # Set the seed
             seed = args.random_restarts * i + j
@@ -545,8 +562,12 @@ def min_causal_score_gplvm(args, x, y, weight, target):
 
             # Subsample data
             if x[i].shape[0] > 4000:
-                x_train = x[i][np.random.choice(len(x[i]), size=4000, replace=False)]
-                y_train = y[i][np.random.choice(len(y[i]), size=4000, replace=False)]
+                x_train = x[i][
+                    np.random.choice(len(x[i]), size=4000, replace=False)
+                ]
+                y_train = y[i][
+                    np.random.choice(len(y[i]), size=4000, replace=False)
+                ]
                 tf.print(f"SUBSAMPLING! {x[i].shape[0]}")
             else:
                 x_train = x[i]
@@ -557,39 +578,36 @@ def min_causal_score_gplvm(args, x, y, weight, target):
             y_train = StandardScaler().fit_transform(y_train).astype(np.float64)
 
             tf.print(f"\n Run: {i} \n Random restart: {j}")
-            (
-                loss_x,
-                loss_y_x,
-
-            ) = causal_score_gplvm(
+            (loss_x, loss_y_x,) = causal_score_gplvm(
                 args=args,
                 x=x_train,
                 y=y_train,
                 run_number=i,
                 restart_number=j,
                 causal=True,
-                save_name=save_name
+                save_name=save_name,
             )
-            (
-                loss_y,
-                loss_x_y,
-
-            ) = causal_score_gplvm(
+            (loss_y, loss_x_y,) = causal_score_gplvm(
                 args=args,
                 x=y_train,
                 y=x_train,
                 run_number=i,
                 restart_number=j,
                 causal=False,
-                save_name=save_name
+                save_name=save_name,
             )
             if loss_x is not None:
-                this_run_score = GPLVM_SCORES(loss_x, loss_y_x, loss_y, loss_x_y)
+                this_run_score = GPLVM_SCORES(
+                    loss_x, loss_y_x, loss_y, loss_x_y
+                )
                 final_scores[i].update({j: this_run_score})
                 tf.print(
-                    loss_x.numpy(), loss_y_x.numpy(), loss_y.numpy(), loss_x_y.numpy()
+                    loss_x.numpy(),
+                    loss_y_x.numpy(),
+                    loss_y.numpy(),
+                    loss_x_y.numpy(),
                 )
-                with open(save_path, 'wb') as f:
+                with open(save_path, "wb") as f:
                     save_dict = {
                         "correct_idx": correct_idx,
                         "wrong_idx": wrong_idx,
@@ -603,14 +621,14 @@ def min_causal_score_gplvm(args, x, y, weight, target):
         final_scores
     )
     best_scores = return_best_causal_scores(
-       all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y
+        all_loss_x, all_loss_y_x, all_loss_y, all_loss_x_y
     )
 
     correct_idx, wrong_idx = get_correct(best_scores, target)
 
     tf.print(f"Correct: {len(correct_idx)}, Wrong: {len(wrong_idx)}")
     # Save checkpoint
-    with open(save_path, 'wb') as f:
+    with open(save_path, "wb") as f:
         save_dict = {
             "correct_idx": correct_idx,
             "wrong_idx": wrong_idx,

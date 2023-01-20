@@ -6,13 +6,22 @@ from gpytorch.variational import VariationalStrategy
 
 class GPModel(ApproximateGP):
     def __init__(self, inducing_points):
-        variational_distribution = CholeskyVariationalDistribution(inducing_points.size(0))
-        variational_strategy = VariationalStrategy(self, inducing_points, variational_distribution, learn_inducing_locations=True)
+        variational_distribution = CholeskyVariationalDistribution(
+            inducing_points.size(0)
+        )
+        variational_strategy = VariationalStrategy(
+            self,
+            inducing_points,
+            variational_distribution,
+            learn_inducing_locations=True,
+        )
         super(GPModel, self).__init__(variational_strategy)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5) + \
-             gpytorch.kernels.RQKernel() + \
-             gpytorch.kernels.MaternKernel(nu=1.5))
+        self.covar_module = gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.MaternKernel(nu=2.5)
+            + gpytorch.kernels.RQKernel()
+            + gpytorch.kernels.MaternKernel(nu=1.5)
+        )
 
     def forward(self, x):
         mean_x = self.mean_module(x)

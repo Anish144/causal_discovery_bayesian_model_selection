@@ -31,24 +31,23 @@ def generate_effect(
     # Get the kernels ready
     kernel_variance = np.random.uniform(0.1, 1)
 
-    kernel = gpflow.kernels.Linear(
-        variance=kernel_variance
-    )
+    kernel = gpflow.kernels.Linear(variance=kernel_variance)
 
     # Sample from a GP with identity mean function
     cov = kernel.K(cause)
     mean = np.zeros(size)
     Y = np.random.multivariate_normal(
-            mean=mean,
-            cov=cov + np.eye(size) * likelihood_noise
-        )
+        mean=mean, cov=cov + np.eye(size) * likelihood_noise
+    )
     Y = Y[:, None]
     return Y
 
 
 if __name__ == "__main__":
     # Save arguements
-    save_path = '/vol/bitbucket/ad6013/Research/gp-causal/data/linear_pairs/files'
+    save_path = (
+        "/vol/bitbucket/ad6013/Research/gp-causal/data/linear_pairs/files"
+    )
     # Generate 100 datasets
     size = 1000
     full_dataset = []
@@ -63,17 +62,11 @@ if __name__ == "__main__":
             1e-2,
         )
         if i < 50:
-            dataset = np.concatenate(
-                (cause, effect),
-                axis=1
-            )
+            dataset = np.concatenate((cause, effect), axis=1)
             target = 1.0
         else:
-            dataset = np.concatenate(
-                (effect, cause),
-                axis=1
-            )
-            target = - 1.0
+            dataset = np.concatenate((effect, cause), axis=1)
+            target = -1.0
         full_dataset.append(dataset)
         all_targets.append(target)
     final_dataset = np.stack(full_dataset, axis=0)
