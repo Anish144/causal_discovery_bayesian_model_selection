@@ -1,1 +1,1 @@
-# gp-causal
+# Finding causal direction using Bayesian model selection
