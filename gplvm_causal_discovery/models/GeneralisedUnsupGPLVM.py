@@ -1,37 +1,21 @@
-from tabnanny import check
+"""
+This is the unsupervised version of the Generalised GPLVM.
+"""
 from typing import Optional
-
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
-from gpflow.models import GPModel, SVGP
-from gpflow import covariances, kernels, likelihoods
+from gpflow.models import SVGP
+from gpflow import likelihoods
 from gpflow.base import Parameter
-from gpflow.config import default_float, default_jitter
-from gpflow.expectations import expectation
-from gpflow.inducing_variables import InducingPoints, InducingVariables
+from gpflow.inducing_variables import InducingVariables
 from gpflow.kernels import Kernel
-from gpflow.mean_functions import MeanFunction, Zero
-from gpflow.probability_distributions import DiagonalGaussian
+from gpflow.config import default_float
 from gpflow.utilities import positive, to_default_float
-from gpflow.utilities.ops import pca_reduce
 from gpflow.models.gpr import GPR
-from gpflow.models.model import GPModel, MeanAndVariance
-from gpflow.models.training_mixins import (
-    InputData,
-    InternalDataTrainingLossMixin,
-    OutputData,
-)
-from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
-from functools import partial
+from gpflow.models.model import MeanAndVariance
+from gpflow.models.util import inducingpoint_wrapper
 from gpflow.conditionals.util import sample_mvn
-
-from ops import cholesky
-
-
-def batch_kernel_evaluation(X, kernel):
-    return kernel(X[0], X[1])
 
 
 class GeneralisedUnsupGPLVM(SVGP):

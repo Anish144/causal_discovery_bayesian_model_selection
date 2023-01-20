@@ -1,4 +1,6 @@
-from tabnanny import check
+"""
+This is the unsupervised collapsed GPLVM
+"""
 from typing import Optional
 
 import numpy as np

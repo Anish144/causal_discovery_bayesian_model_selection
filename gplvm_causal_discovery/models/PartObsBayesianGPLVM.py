@@ -1,19 +1,17 @@
-from tabnanny import check
+"""
+This is the conditional version of the collapsed GPLVM.
+"""
 from typing import Optional
-
 import numpy as np
 import tensorflow as tf
-
-from gpflow import covariances, kernels, likelihoods
+from gpflow import covariances, likelihoods
 from gpflow.base import Parameter
 from gpflow.config import default_float, default_jitter
 from gpflow.expectations import expectation
 from gpflow.inducing_variables import InducingPoints
 from gpflow.kernels import Kernel
-from gpflow.mean_functions import MeanFunction, Zero
 from gpflow.probability_distributions import DiagonalGaussian
 from gpflow.utilities import positive, to_default_float
-from gpflow.utilities.ops import pca_reduce
 from gpflow.models.gpr import GPR
 from gpflow.models.model import GPModel, MeanAndVariance
 from gpflow.models.training_mixins import (
@@ -22,9 +20,6 @@ from gpflow.models.training_mixins import (
     OutputData,
 )
 from gpflow.models.util import data_input_to_tensor, inducingpoint_wrapper
-
-import tensorflow_probability as tfp
-from ops import cholesky
 
 
 class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
@@ -156,7 +151,6 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             self.inducing_variable, self.kernel, jitter=self.jitter
         )
         L = tf.linalg.cholesky(cov_uu)
-        # L = cholesky(cov_uu)
         tf.debugging.assert_all_finite(L, message="L is not finite!")
         sigma2 = self.likelihood.variance
         # Compute intermediate matrices
@@ -168,7 +162,7 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         )
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         LB = tf.linalg.cholesky(B)
-        # LB = cholesky(B)
+        # Stop the optimisation if there is a NaN
         tf.debugging.assert_all_finite(LB, message="LB is not finite!")
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
         c = (
@@ -209,11 +203,6 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             )
         )
         bound -= KL
-        # if np.isnan(LB.numpy()).sum() > 0:
-        #     print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
-        # import pdb; pdb.set_trace()
-
-        # print(f"{self.kernel.variance.numpy()}, {self.likelihood.variance.numpy()}, {self.kernel.lengthscales.numpy()}")
         return bound
 
     def predict_f(
@@ -294,12 +283,3 @@ class PartObsBayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
 
     def predict_log_density(self, data: OutputData) -> tf.Tensor:
         raise NotImplementedError
-
-
-def check_condition_number(matrix):
-    eig_B = tf.linalg.eigvals(matrix, name=None)
-    eig_real = tf.math.real(eig_B)
-    max_eig = tf.math.abs(tf.reduce_max(eig_real))
-    min_eig = tf.math.abs(tf.reduce_min(eig_real))
-    condition_number = max_eig / min_eig
-    return condition_number
