@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 import tensorflow as tf
 
-from gpflow import covariances, kernels, likelihoods
+from gpflow import covariances, likelihoods
 from gpflow.base import Parameter
 from gpflow.base import (
     InputData,
@@ -18,10 +18,8 @@ from gpflow.config import default_float, default_jitter
 from gpflow.expectations import expectation
 from gpflow.inducing_variables import InducingPoints
 from gpflow.kernels import Kernel
-from gpflow.mean_functions import MeanFunction, Zero
 from gpflow.probability_distributions import DiagonalGaussian
 from gpflow.utilities import positive, to_default_float
-from gpflow.utilities.ops import pca_reduce
 from gpflow.models.gpr import GPR
 from gpflow.models.model import GPModel, MeanAndVariance
 from gpflow.models.training_mixins import (
@@ -35,10 +33,6 @@ from gpflow.models.util import (
     data_input_to_tensor,
     inducingpoint_wrapper,
 )
-
-import tensorflow_probability as tfp
-from ops import cholesky
-from decimal import Decimal
 
 
 class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
@@ -157,7 +151,6 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
             self.inducing_variable, self.kernel, jitter=self.jitter
         )
         L = tf.linalg.cholesky(cov_uu)
-        # # L = cholesky(cov_uu)
         tf.debugging.assert_all_finite(L, message="L is not finite!")
         sigma2 = self.likelihood.variance
         # Compute intermediate matrices
@@ -170,18 +163,10 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         B = AAT + tf.eye(num_inducing, dtype=default_float())
         tf.debugging.assert_all_finite(B, message="B is not finite!")
         LB = tf.linalg.cholesky(B)
-        # if np.isnan(LB.numpy()).sum() > 0:
-        #     import pdb; pdb.set_trace()
+        # Error message to ensure everything is finite
         tf.debugging.assert_all_finite(
             LB,
             message="LB is not finite! "
-            # f" cond cov_uu: {np.linalg.cond(cov_uu.numpy())}"
-            # f" cond L: {np.linalg.cond(L.numpy())}"
-            # f" cond psi2: {np.linalg.cond(psi2.numpy())}"
-            # f" cond tmp: {np.linalg.cond(tmp.numpy())}"
-            # f" cond AAT: {np.linalg.cond(AAT.numpy())}"
-            # f" cond B: {np.linalg.cond(B.numpy())}"
-            # f" like_var: {sigma2.numpy()}"
         )
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
         c = (
