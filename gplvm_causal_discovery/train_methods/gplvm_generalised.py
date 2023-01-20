@@ -2,29 +2,44 @@
 This method will fit a gplvm for both the marginal and conditional models and
 choose the causal direction as the one with the minimum
 -log marginal likelihood.
+
+This is the training procedure for the SVI GPLVM model that is used for
+large dataset sizes.
+
+Another advantage of this method is that any valid kernel can be used.
+
+The model is trained using Adam. It is important to run Adam for long enough so
+that the model converges. This will vary by application.
+To reduce local optima:
+- Data should be normalised
+- Likelihood noise should be initialised low
+- Kernel lengthscale should be lower than variance of the data.
+- Latent approximate posterior should have low variance. This allows the model
+to fit the data before using the latent.
+- Latent approximate posterior mean should be initialised with the output data.
+This is equivalent to doing PCA in 1 dimension.
 """
 from models.GeneralisedGPLVM import GeneralisedGPLVM
 from models.GeneralisedUnsupGPLVM import GeneralisedUnsupGPLVM
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-from tqdm import trange
 from typing import Optional
 import gpflow
 import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 import tensorflow as tf
-from gpflow.quadrature import NDiagGHQuadrature
-from tqdm import trange
-from gpflow.optimizers import NaturalGradient
 import gpflow
 import matplotlib.pyplot as plt
 from gpflow.config import default_float
 import dill
 from collections import defaultdict
 from collections import namedtuple
-from utils import return_all_scores, return_best_causal_scores, get_correct
+from gplvm_causal_discovery.utils import (
+    return_all_scores,
+    return_best_causal_scores,
+    get_correct,
+)
 
 adam_learning_rates = [0.05, 0.01]
 
@@ -56,14 +71,9 @@ def run_optimizer(
         optimization_step()
         neg_elbo = training_loss().numpy()
         logf.append(neg_elbo)
-        # if step % 5000 == 0:
-
-        # iterator.set_description(f"EPOCH: {step}, NEG ELBO: {neg_elbo}")
-
-        # if step / float(data_size / minibatch_size) > 10000:
-        #     if np.abs(np.mean(logf[-5000:])) - np.abs(np.mean(logf[-100:])) < 0.2 * np.std(logf[-100:]):
-        #         print(f"\n BREAKING! Step: {step} \n")
-        #         break
+        # It is possible to include a stopping criteria here. However there
+        # is a risk that the training will be stopped too soon and the
+        # ELBO achieved will not be as high as it could be
     return logf
 
 

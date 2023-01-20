@@ -166,10 +166,7 @@ class BayesianGPLVM(GPModel, InternalDataTrainingLossMixin):
         tf.debugging.assert_all_finite(B, message="B is not finite!")
         LB = tf.linalg.cholesky(B)
         # Error message to ensure everything is finite
-        tf.debugging.assert_all_finite(
-            LB,
-            message="LB is not finite! "
-        )
+        tf.debugging.assert_all_finite(LB, message="LB is not finite! ")
         log_det_B = 2.0 * tf.reduce_sum(tf.math.log(tf.linalg.diag_part(LB)))
         c = (
             tf.linalg.triangular_solve(

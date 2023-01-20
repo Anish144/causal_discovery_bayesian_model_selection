@@ -1,3 +1,14 @@
+"""
+Script to run the GPLVM on real and synthetic datasets.
+
+Hyperparameters are set at recommended levels.
+The results for the paper were set at:
+- num_inducing=200
+- random_restarts=20
+
+Note that the GPLVMs return -log marginal likelihood. Hence the lower the score
+the better.
+"""
 from gplvm_causal_discovery.data.get_data import (
     get_tubingen_pairs_dataset,
     get_synthetic_dataset,
@@ -8,14 +19,18 @@ from gplvm_causal_discovery.data.get_data import (
     get_multi_pairs_dataset,
 )
 from gplvm_causal_discovery.data.get_data import get_net_pairs_dataset
-from gplvm_causal_discovery.data.get_data import get_gplvm_pairs_dataset, get_linear_pairs_dataset
-from train_methods.gplvm_method import min_causal_score_gplvm
-from train_methods.gplvm_adam_method import min_causal_score_gplvm_adam
-from train_methods.gpcde_quadrature import min_causal_score_gplvm_quadrature
-from train_methods.gplvm_generalised import min_causal_score_gplvm_generalised
+from gplvm_causal_discovery.data.get_data import (
+    get_gplvm_pairs_dataset,
+    get_linear_pairs_dataset,
+)
+from gplvm_causal_discovery.train_methods.gplvm_method import (
+    min_causal_score_gplvm_adam,
+)
+from gplvm_causal_discovery.train_methods.gplvm_generalised import (
+    min_causal_score_gplvm_generalised,
+)
 import argparse
 import numpy as np
-import os
 import tensorflow as tf
 
 
@@ -146,7 +161,7 @@ if __name__ == "__main__":
         "-num_it",
         type=int,
         default=100000,
-        help="NUmber of maximum iterations for Adam.",
+        help="Number of maximum iterations for Adam.",
     )
     parser.add_argument(
         "--minibatch_size",

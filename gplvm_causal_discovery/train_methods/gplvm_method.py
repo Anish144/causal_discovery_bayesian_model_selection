@@ -2,8 +2,29 @@
 This method will fit a gplvm for both the marginal and conditional models and
 choose the causal direction as the one with the minimum
 -log marginal likelihood.
+
+This is the training procedure for closed form GPLVM, following Titsias (2010).
+
+Note that it is only possible to use kernels like RBF or linear, that have
+a closed form expectation - see Titsias (2010).
+
+GPLVMs have a tendency to find bad local optima when using BFGS - the entire
+dataset is explaied by the likelihood noise.
+To alleviate these cases, we train a GPLVM first that finds the score if
+the GPLVM explained everything with likelihood noise.
+Then, we train a new model with Adam for a number of epochs, till it's ELBO
+is hgiher than that of the noise model. Once this happens, we train the
+resultant model using BFGS.
+We found that this is very effective at reducing the chances of local optima.
+Other things that are important:
+- Data should be normalised
+- Likelihood noise should be initialised low
+- Kernel lengthscale should be lower than variance of the data.
+- Latent approximate posterior should have low variance. This allows the model
+to fit the data before using the latent.
+- Latent approximate posterior mean should be initialised with the output data.
+This is equivalent to doing PCA in 1 dimension.
 """
-from optparse import check_choice
 from gpflow.base import Parameter
 from gpflow.config import default_float
 from gpflow.utilities import positive
@@ -12,7 +33,6 @@ from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
-from tqdm import trange
 from typing import Optional
 import gpflow
 import matplotlib.pyplot as plt
