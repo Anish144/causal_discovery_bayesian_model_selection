@@ -28,8 +28,8 @@ This is equivalent to doing PCA in 1 dimension.
 from gpflow.base import Parameter
 from gpflow.config import default_float
 from gpflow.utilities import positive
-from models.BayesGPLVM import BayesianGPLVM
-from models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
+from ..models.BayesGPLVM import BayesianGPLVM
+from ..models.PartObsBayesianGPLVM import PartObsBayesianGPLVM
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
@@ -42,7 +42,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from collections import defaultdict
 from collections import namedtuple
-from utils import return_all_scores, return_best_causal_scores, get_correct
+from ..utils import return_all_scores, return_best_causal_scores, get_correct
 
 
 GPLVM_SCORES = namedtuple("GPLVM_SCORES", "loss_x loss_y_x loss_y loss_x_y")

@@ -24,7 +24,7 @@ from gplvm_causal_discovery.data.get_data import (
     get_linear_pairs_dataset,
 )
 from gplvm_causal_discovery.train_methods.gplvm_method import (
-    min_causal_score_gplvm_adam,
+    min_causal_score_gplvm,
 )
 from gplvm_causal_discovery.train_methods.gplvm_generalised import (
     min_causal_score_gplvm_generalised,
@@ -35,7 +35,7 @@ import tensorflow as tf
 
 
 methods = {
-    "gplvm-adam": min_causal_score_gplvm_adam,
+    "gplvm": min_causal_score_gplvm,
     "gplvm-generalised": min_causal_score_gplvm_generalised,
 }
 

@@ -19,8 +19,8 @@ to fit the data before using the latent.
 - Latent approximate posterior mean should be initialised with the output data.
 This is equivalent to doing PCA in 1 dimension.
 """
-from models.GeneralisedGPLVM import GeneralisedGPLVM
-from models.GeneralisedUnsupGPLVM import GeneralisedUnsupGPLVM
+from ..models.GeneralisedGPLVM import GeneralisedGPLVM
+from ..models.GeneralisedUnsupGPLVM import GeneralisedUnsupGPLVM
 from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
@@ -35,7 +35,7 @@ from gpflow.config import default_float
 import dill
 from collections import defaultdict
 from collections import namedtuple
-from gplvm_causal_discovery.utils import (
+from ..utils import (
     return_all_scores,
     return_best_causal_scores,
     get_correct,
