@@ -1,7 +1,7 @@
 #!/bin/sh
 source /vol/cuda/11.2.1-cudnn8.1.0.77/setup.sh
-python3 train.py \
-    --work_dir="/vol/bitbucket/ad6013/Research/gp-causal" \
+python3 bin/synthetic_real.py \
+    --work_dir="./gplvm_causal_discovery" \
     --data="gauss_pairs" \
     --num_inducing=200 \
     --plot_fit \

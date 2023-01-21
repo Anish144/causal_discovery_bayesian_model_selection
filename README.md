@@ -1,7 +1,7 @@
 # Finding causal direction using Bayesian model selection
 
 Installation instructions:
-Simply run `pip -r requirements.txt`
+Simply run `pip install -r requirements.txt`
 This will run the setup script and install all the required dependencies.
 
 File structure:

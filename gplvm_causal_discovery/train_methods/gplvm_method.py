@@ -24,6 +24,12 @@ Other things that are important:
 to fit the data before using the latent.
 - Latent approximate posterior mean should be initialised with the output data.
 This is equivalent to doing PCA in 1 dimension.
+
+Jitter:
+There is still a chance of numerical instability. This is usually due to a
+Cholesky operation. If this happens, the jitter is increased and optimisation
+is restarted. This can be an issue if there is very little noise in the
+dataset.
 """
 from gpflow.base import Parameter
 from gpflow.config import default_float
