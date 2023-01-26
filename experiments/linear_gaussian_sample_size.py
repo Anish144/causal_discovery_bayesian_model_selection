@@ -370,7 +370,7 @@ if __name__ == "__main__":
         "--work_dir",
         "-w",
         type=str,
-        default="/vol/bitbucket/ad6013/Research/gp-causal",
+        default="./",
     )
     parser.add_argument(
         "--sample_size",
