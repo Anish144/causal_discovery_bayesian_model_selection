@@ -89,7 +89,7 @@ def generate_dataset():
 if __name__ == "__main__":
     # Save arguements
     save_path = (
-        "/vol/bitbucket/ad6013/Research/gp-causal/data/gplvm_pairs/files"
+        "./"
     )
     # Generate 100 datasets
     size = 1000
