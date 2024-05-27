@@ -1,4 +1,4 @@
-# Finding causal direction using Bayesian model selection
+# Bivariate Causal Discovery using Bayesian Model Selection
 
 [Paper on Arxiv](https://arxiv.org/abs/2306.02931)
 
