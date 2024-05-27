@@ -6,7 +6,7 @@ Installation instructions:
 Simply run `pip install -r requirements.txt`
 This will run the setup script and install all the required dependencies.
 
-File structure:
+Structure:
 - bin/ contains scripts to run the main experiments with real and synthetic data (Table 1)
 - experiments/ contains additional experiments
 - gplvm_causal_discovery/ contains the main code
@@ -20,9 +20,13 @@ File structure:
     - train_methods/ contains the scripts required for training the methods
     - utils.py contains the utilities
 
-To get the results in the paper, run the notebook in notebooks/paper_results.ipynb
+To print the results in the paper, run the notebook in notebooks/paper_results.ipynb
 
 To run the method on data, run the script bin/synthetic_real.py
 
+### Latent Gaussian Process Models:
+Performance was found to increase with better inference, better initialisation of hyperparameters, as well as inclusion of more kernels. As this is an active area of research, we expect implementation of any improvements in our understanding of these to help.
+
 ### Random Restarts:
-The overarching principle behind the method is to choose the model with highest marginal likelihood (or lower bound to it). As latent GP models are susceptible to local optima, random restarts with different initialisation is recommended.  
+The overarching principle behind the method is to choose the model with highest marginal likelihood (or lower bound to it). As latent GP models are susceptible to local optima, random restarts with different initialisation is recommended.
+
