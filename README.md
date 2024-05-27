@@ -25,7 +25,7 @@ To print the results in the paper, run the notebook in notebooks/paper_results.i
 To run the method on data, run the script bin/synthetic_real.py
 
 ### Latent Gaussian Process Models:
-Performance was found to increase with better inference, better initialisation of hyperparameters, as well as inclusion of more kernels. As this is an active area of research, we expect implementation of any improvements in our understanding of these to help.
+Performance was found to increase with better inference, better initialisation of hyperparameters, as well as inclusion of more kernels. As this is an active area of research, we expect implementation of any improvements in these to help.
 
 ### Random Restarts:
 The overarching principle behind the method is to choose the model with highest marginal likelihood (or lower bound to it). As latent GP models are susceptible to local optima, random restarts with different initialisation is recommended.
