@@ -23,3 +23,6 @@ File structure:
 To get the results in the paper, run the notebook in notebooks/paper_results.ipynb
 
 To run the method on data, run the script bin/synthetic_real.py
+
+### Random Restarts:
+The overarching principle behind the method is to choose the model with highest marginal likelihood (or lower bound to it). As latent GP models are susceptible to local optima, random restarts with different initialisation is recommended.  
